@@ -15,7 +15,7 @@
 - Launch with Docker
 
 ### How to use
-Copy and paste an RSS feed URL into the "Add feed URL..." box. There are a few great tools out there you can use to convert nearly any website, blog, review site, or YouTube channel into an RSS feed link.
+Copy and paste any RSS feed URL into the "Add feed URL..." box. There are a few great tools out there you can use to convert nearly any website, blog, review site, or YouTube channel into an RSS feed link.
 #### Streams and Categories
 When you add a feed, it will automatically be placed in "Uncategorized". You can put feeds into different categories, and click the categories to view only those feeds. Streams are just a second way of organizing feeds. You can mix feeds from different categories into separate streams. For exmaple, create a stream called "Morning News" that's a mix of sports, self hosted news and some music feeds.
 

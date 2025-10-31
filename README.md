@@ -1,6 +1,5 @@
 ## VolumeRead21 | Simple Self-Hosted RSS Feed App
-
-<img width="1567" height="1163" alt="Captura de pantalla 2025-10-31 a la(s) 12 37 24 a m" src="https://github.com/user-attachments/assets/9103d3de-5788-47f5-8fb6-40b924c470dd" /> &nbsp;
+<img width="1564" height="1157" alt="Captura de pantalla 2025-10-31 a la(s) 12 37 24 a m" src="https://github.com/user-attachments/assets/bd667182-3a8f-4a65-a8cf-ff74f3d76c99" /> &nbsp;
 <img width="1580" height="1157" alt="Captura de pantalla 2025-10-31 a la(s) 12 37 46 a m" src="https://github.com/user-attachments/assets/d8f46588-df77-400d-8feb-9292bd6d9bb4" />
 
 ### Features

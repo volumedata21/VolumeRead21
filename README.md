@@ -1,4 +1,6 @@
-## VolumeRead21 | Simple Self-Hosted RSS Feed App
+# VolumeRead21
+### Self-Hosted RSS Feed Reader | Runs on Docker
+&nbsp;
 <img width="1564" height="1157" alt="Captura de pantalla 2025-10-31 a la(s) 12 37 24 a m" src="https://github.com/user-attachments/assets/bd667182-3a8f-4a65-a8cf-ff74f3d76c99" /> &nbsp;
 <img width="1580" height="1157" alt="Captura de pantalla 2025-10-31 a la(s) 12 37 46 a m" src="https://github.com/user-attachments/assets/d8f46588-df77-400d-8feb-9292bd6d9bb4" />
 
@@ -13,9 +15,9 @@
 - Launch with Docker
 
 ### How to use
-Copy and paste an rss feed URL into the "Add feed URL..." box. There are a few great tools out there you can use to convert nearly any website, blog, review site, or YouTube channel into an RSS feed link.
+Copy and paste an RSS feed URL into the "Add feed URL..." box. There are a few great tools out there you can use to convert nearly any website, blog, review site, or YouTube channel into an RSS feed link.
 #### Streams and Categories
-When you add a feed, it will automatically be placed in "Uncategorized". You can put feeds into different categories, and click the categories to view only those feeds. Streams are just a second way of organizing feeds. You can mix feeds from different categories into separate streams. For exmaple, if you could creat a stream called "Morning News" that's a mix of sports, self hosted news and maybe some music feeds.
+When you add a feed, it will automatically be placed in "Uncategorized". You can put feeds into different categories, and click the categories to view only those feeds. Streams are just a second way of organizing feeds. You can mix feeds from different categories into separate streams. For exmaple, create a stream called "Morning News" that's a mix of sports, self hosted news and some music feeds.
 
 ## Installation
 
@@ -27,11 +29,12 @@ When you add a feed, it will automatically be placed in "Uncategorized". You can
 5. `nano compose.yaml`
 6. Copy and paste contents of compose.yaml, hit "ctrl+x" to exit, "y" to save.
 7. `docker compose up -d`
+8. Your instance will now be available at http://[host-ip-address]:2122
 
 If you run into permission issues, make sure to chown the data directory to your user.
 `sudo chown -R 1000:1000 data`
 
-### compose.yaml with bind mount
+### compose.yaml with bind mount (Recommended setup)
 ```
 services:
   volumeread21:
@@ -94,7 +97,6 @@ services:
       - DATA_DIR=/data
 ```
 
-
 1.  Clone the repository:
     ```bash
     git clone https://github.com/volumedata21/VolumeRead21.git
@@ -110,6 +112,20 @@ services:
 3.  Build and run the app:
     ```bash
     docker compose up -d --build
+
+### Docker Run Command
+Get VolumeRead21 running with one simple command. Access it at http://[host-ip-address]:2122
+
+```
+docker run -d \
+  --name volumeread21 \
+  -p 2122:5000 \
+  -v rss_data:/data \
+  --restart unless-stopped \
+  -e FLASK_DEBUG=0 \
+  -e DATA_DIR=/data \
+  volumedata21/volumeread21:latest
+  ```
     
 
 ### I am not a professional developer. 

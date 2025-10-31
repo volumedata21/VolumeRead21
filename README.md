@@ -46,6 +46,7 @@ services:
       - FLASK_DEBUG=0
       - DATA_DIR=/data
     user: "1000:1000"
+    restart: unless-stopped
 ```
 
 Keep `user: "1000:1000"` if you don't want to run as root. If you don't create a data folder before launching, you'll most likely have to chown the directly for user 1000 (or whoever your user is when you type in 'id').
@@ -64,6 +65,7 @@ services:
     environment:
       - FLASK_DEBUG=0
       - DATA_DIR=/data
+    restart: unless-stopped
 volumes:
   rss_data:
 ```

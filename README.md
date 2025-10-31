@@ -70,6 +70,47 @@ volumes:
 ```
 This should run without any permission issues. And you don't have to create any directories. Trickier to backup if needed.
 
+### compose.yaml to build from source
+
+```
+services:
+  volumeread21:
+    # 'build: .' tells Docker Compose to find the 'Dockerfile'
+    # in the current directory and build it.
+    build: .
+    container_name: volumeread21
+    ports:
+      - "2122:5000"
+    user: "1000:1000"
+    volumes:
+      # This maps a local "./data" folder to the container's /data folder.
+      # This makes the database persistent and accessible on the host machine.
+      - ./data:/data
+    restart: unless-stopped
+    environment:
+      # These are your production settings
+      - FLASK_DEBUG=0
+      - DATA_DIR=/data
+```
+
+
+1.  Clone the repository:
+    ```bash
+    git clone https://github.com/volumedata21/VolumeRead21.git
+    cd VolumeRead21
+    ```
+
+2.  Create the local data folder and set its permissions (this prevents database errors on Linux):
+    ```bash
+    mkdir data
+    sudo chown -R 1000:1000 ./data
+    ```
+
+3.  Build and run the app:
+    ```bash
+    docker compose up -d --build
+    
+
 ### I am not a professional developer. 
 This is a mix of mostly vibe-code with my minimal coding knowledge of html, css, and Docker. I recommend only deploying this app locally.
 

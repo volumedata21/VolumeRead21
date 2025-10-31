@@ -9,6 +9,7 @@
 - Save favorites indefinitely
 - Save bookmarks
 - Self hosted
+- Mobile, foldable-phone, and tablet friendly.
 - Launch with Docker
 
 ### How to use

@@ -1,0 +1,14 @@
+services:
+  volumeread21:
+    image: volumedata21/volumeread21:latest
+    container_name: volumeread21
+    ports:
+      - "2122:5000"
+    volumes:
+      - rss_data:/data
+    restart: unless-stopped
+    environment:
+      - FLASK_DEBUG=0
+      - DATA_DIR=/data
+volumes:
+  rss_data:

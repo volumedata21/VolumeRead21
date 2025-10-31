@@ -23,8 +23,8 @@ When you add a feed, it will automatically be placed in "Uncategorized". You can
 1. `cd [your-directory, for me usually ~/appdata]`
 2. `mkdir volumeread21`
 3. `cd volumeread21`
-4. mkdir data
-5. nano compose.yaml
+4. `mkdir data`
+5. `nano compose.yaml`
 6. Copy and paste contents of compose.yaml, hit "ctrl+x" to exit, "y" to save.
 7. `docker compose up -d`
 

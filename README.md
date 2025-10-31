@@ -117,3 +117,4 @@ This is a mix of mostly vibe-code with my minimal coding knowledge of html, css,
 #### Known Issues
 - Sometimes images will go beyond width of the article
 - "Uncategorized" will expand automatically when dragging a feed into a stream.
+- Error using share button. If your VolumeRead21 instance is not behind a reverse proxy (no SSL), you will get an error when trying to use the share article button. All that feature does is copy the link into your clipboard. I don't know if there's a solve for this, as this feature seems to be tied to having SSL for security issues.

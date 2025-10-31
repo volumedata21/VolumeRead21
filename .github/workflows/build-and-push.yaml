@@ -1,0 +1,34 @@
+name: Build and Push to Docker Hub
+
+# This action will run on every push to your "main" branch
+on:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      # 1. Checks out your repository's code
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      # 2. Logs in to Docker Hub using the secrets you just set
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # 3. Builds and pushes your image
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: |       
+            # ----------------- IMPORTANT -----------------
+            # CHANGE "your-dockerhub-username" to your actual Docker Hub username
+            # CHANGE "volumeread21" to your desired Docker Hub repository name
+            # -----------------------------------------------
+            volumedata21/volumeread21:latest

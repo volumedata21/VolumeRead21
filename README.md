@@ -48,7 +48,7 @@ services:
     user: "1000:1000"
 ```
 
-Keep 'user: "1000:1000" if you don't want to run as root. If you don't create a data folder before launching, you'll most likely have to chown the directly for user 1000 (or whoever your user is when you type in 'id').
+Keep `user: "1000:1000"` if you don't want to run as root. If you don't create a data folder before launching, you'll most likely have to chown the directly for user 1000 (or whoever your user is when you type in 'id').
 
 ### compose.yaml with Docker volume
 ```
@@ -67,10 +67,10 @@ services:
 volumes:
   rss_data:
 ```
+This should run without any permission issues. And you don't have to create any directories. Trickier to backup if needed.
 
-
-
-I am not a professional developer. This is a mix of mostly vibe-code with my minimal coding knowledge of html, css, and Docker. I recommend only deploying this app locally.
+### I am not a professional developer. 
+This is a mix of mostly vibe-code with my minimal coding knowledge of html, css, and Docker. I recommend only deploying this app locally.
 
 #### Known Issues
 - Sometimes images will go beyond width of the article

@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VolumeRead21</title>
+
+    <script src="https://cdn.tailwindcss.com?plugins=forms,line-clamp,typography"></script>
+    <script src="/static/js/app.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <!-- *** END OF FIX *** -->
+
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+
+    <!-- Favicons -->
+    <link rel="shortcut icon" href="/static/favicon/favicon.ico">
+    <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon/favicon.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="/static/favicon/apple-touch-icon.png">
+    <link rel="icon" type="image/png" sizes="192x192" href="/static/favicon/android-chrome-192x192.png">
+
+    <!-- Styles -->
+    <link rel="stylesheet" href="/static/css/style.css">
+
+</head>
+<body
+    class="bg-[var(--bg-darkest)] text-[var(--text-main)]"
+    x-data="rssApp"
+    x-init="init()"
+    :class="{ 'overflow-hidden': isMobileMenuOpen || isModalOpen }"
+>
+
+    <!-- Mobile Menu Overlay -->
+    <div x-show="isMobileMenuOpen" @click="isMobileMenuOpen = false" x-transition:enter="transition-opacity ease-in-out duration-300" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100" x-transition:leave="transition-opacity ease-in-out duration-300" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0" class="fixed inset-0 z-30 bg-black/60 lg:hidden" x-cloak></div>
+
+    <!-- App Container -->
+    <div class="flex h-screen">
+
+        <!-- Sidebar Navigation -->
+        <aside
+            class="fixed inset-y-0 left-0 z-40 flex w-72 transform flex-col border-r border-[var(--divider-color)] bg-[var(--bg-medium)] transition-transform duration-300 ease-in-out lg:translate-x-0"
+            :class="{ '-translate-x-full': !isMobileMenuOpen, 'translate-x-0': isMobileMenuOpen }"
+            @dragover.prevent @drop.prevent="dragEndAll()" x-cloak>
+
+            <!-- Sidebar Header -->
+            <div class="flex h-16 shrink-0 items-center justify-between border-b border-[var(--divider-color)] px-4">
+                <a href="#" @click.prevent="setView('all'); searchQuery=''" class="flex items-center gap-3 group">
+                    <i class="material-icons" style="font-size:28px;color:#DD3D2D;">rss_feed</i>
+                    <span class="text-lg font-semibold text-[var(--text-bright)] group-hover:text-[var(--text-main)]">VolumeRead21</span>
+                </a>
+                <div class="flex items-center gap-2">
+                    <button type="button" class="-mr-2 p-2 text-[var(--text-secondary)] hover:text-[var(--text-bright)] lg:hidden" @click="isMobileMenuOpen = false">
+                        <i class="material-icons" style="font-size: 24px;">close</i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Add Feed Form -->
+            <div class="p-4">
+                <form @submit.prevent="addFeed()">
+                    <div class="relative">
+                        <input type="text" placeholder="Add feed URL..." x-model="newFeedUrl" class="w-full rounded-md border-[var(--divider-color)] bg-[var(--bg-darkest)] pr-10 text-sm text-[var(--text-bright)] placeholder-[var(--text-secondary)] focus:border-[var(--highlight-ring)] focus:ring-[var(--highlight-ring)]">
+                        <button type="submit" class="absolute inset-y-0 right-0 flex items-center pr-3 text-[var(--text-secondary)] hover:text-[var(--text-highlight)]">
+                            <i class="material-icons" style="font-size: 20px;">add</i>
+                        </button>
+                    </div>
+                </form>
+                <p x-show="feedError" x-text="feedError" class="mt-2 text-xs text-red-500" x-cloak></p>
+            </div>
+
+            <!-- Main Nav List -->
+            <nav class="flex-1 space-y-1 overflow-y-auto px-4 pb-4">
+                 <a href="#" @click.prevent="setView('all')" class="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium hover:bg-[var(--bg-highlight)]/50" :class="currentView.type === 'all' ? 'main-nav-selected' : 'text-[var(--text-main)]'"><i class="material-icons" style="font-size:20px;">apps</i> All Feeds</a>
+                 <a href="#" @click.prevent="setView('favorites')" class="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium hover:bg-[var(--bg-highlight)]/50" :class="currentView.type === 'favorites' ? 'main-nav-selected' : 'text-[var(--text-main)]'"><i class="material-icons" style="font-size:20px;">star_outline</i> Favorites</a>
+                 <a href="#" @click.prevent="setView('readLater')" class="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium hover:bg-[var(--bg-highlight)]/50" :class="currentView.type === 'readLater' ? 'main-nav-selected' : 'text-[var(--text-main)]'"><i class="material-icons" style="font-size:20px;">bookmark_border</i> Read Later</a>
+                 <hr class="border-[var(--divider-color)] mx-4 my-2">
+
+                <!-- Streams Section -->
+                <div class="pt-2" x-cloak>
+                    <h3 class="px-3 text-xs font-semibold uppercase text-[var(--text-secondary)]">Streams</h3>
+                    <div class="mt-1 space-y-1">
+                        <template x-for="stream in appData.customStreams" :key="stream.id">
+                            <div>
+                                <div
+                                    class="group flex items-center rounded-md pr-2 text-[var(--text-main)] hover:bg-[var(--bg-darkest)]/50"
+                                    @dragover.prevent="dragOverStreamId = stream.id"
+                                    @dragleave="dragOverStreamId = null"
+                                    @drop.prevent="dropFeedOnStream(stream.id)"
+                                    :data-stream-id="stream.id"
+                                    :class="{
+                                        'bg-[var(--highlight-bg)] text-[var(--highlight-text)]': currentView.type === 'custom_stream' && currentView.id === stream.id,
+                                        'bg-[var(--bg-darkest)]/50 outline-dashed outline-1 outline-[var(--text-highlight)]': dragOverStreamId === stream.id && draggingFeedId
+                                    }">
+                                    <button @click="toggleStream(stream.id)" class="p-1">
+                                        <i class="material-icons transform transition-transform text-sm" :class="{ 'rotate-90': openStreamIDs.includes(stream.id) }">chevron_right</i>
+                                    </button>
+                                    <button @click="setView('custom_stream', stream.id)" class="flex flex-1 items-center gap-2 px-1 py-1 text-sm font-medium text-left truncate">
+                                        <i class="material-icons" style="font-size: 18px;">view_stream</i>
+                                        <span x-text="stream.name"></span>
+                                    </button>
+                                    <button @click="softDeleteStream(stream.id)" class="p-2 ml-auto lg:opacity-0 lg:group-hover:opacity-100 focus:opacity-100 text-[var(--text-secondary)] hover:text-red-500" title="Remove Stream">
+                                        <span class="material-icons" style="font-size: 16px;">delete</span>
+                                    </button>
+                                </div>
+                                <div class="mt-1 space-y-1 pl-6" x-show="openStreamIDs.includes(stream.id)" x-transition>
+                                    <template x-for="feed in getFeedsInStream(stream.id)" :key="'s-'+stream.id+'-f-'+feed.id">
+                                        <div class="group flex items-center rounded-md pr-2 text-[var(--text-secondary)] hover:bg-[var(--bg-darkest)]/30">
+                                             <a href="#" @click.prevent="setView('feed', feed.id)" class="flex flex-1 items-center gap-2 truncate py-1 pl-4 pr-2 text-sm">
+                                                 <i class="material-icons" style="font-size: 16px;">rss_feed</i>
+                                                 <span x-text="feed.title"></span>
+                                             </a>
+                                             <button @click="removeFeedFromStream(stream.id, feed.id)" class="p-2 lg:opacity-0 lg:group-hover:opacity-100 hover:text-red-500 focus:opacity-100" title="Remove feed from this stream">
+                                                 <span class="material-icons" style="font-size: 16px;">close</span>
+                                             </button>
+                                        </div>
+                                    </template>
+                                     <p x-show="getFeedsInStream(stream.id).length === 0" class="pl-4 text-xs italic text-[var(--text-secondary)]/70">Drag feeds here</p>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+
+                 <hr class="border-[var(--divider-color)] mx-4 my-2">
+
+                <!-- Feeds Section -->
+                <div class="pt-2" x-cloak>
+                    <h3 class="px-3 text-xs font-semibold uppercase text-[var(--text-secondary)]">Feeds</h3>
+                    <div class="mt-1 space-y-1">
+                        <template x-for="category in appData.categories.sort((a, b) => a.name === 'Uncategorized' ? -1 : b.name === 'Uncategorized' ? 1 : a.name.localeCompare(b.name))" :key="category.id">
+                            <div>
+                                <div class="group flex items-center rounded-md text-[var(--text-secondary)] hover:bg-[var(--bg-darkest)]/50"
+                                     :data-category-id="category.id"
+                                     :class="{ 'bg-[var(--highlight-bg)] !text-[var(--highlight-text)]': currentView.type === 'category' && currentView.id === category.id, 'bg-[var(--bg-darkest)]/50 outline-dashed outline-1 outline-[var(--text-highlight)]': dragOverCategoryId === category.id && draggingFeedId }"
+                                     @dragover.prevent="dragOverCategoryId = category.id"
+                                     @dragleave="dragOverCategoryId = null"
+                                     @drop.prevent="dropFeed(category.id)">
+
+                                    <button @click="toggleCategory(category.id)" class="p-1">
+                                        <i class="material-icons transform transition-transform text-sm" :class="{ 'rotate-90': openCategoryIDs.includes(category.id) }">chevron_right</i>
+                                    </button>
+                                    <button @click="setView('category', category.id)" class="flex-1 px-1 py-1 text-xs font-semibold uppercase text-left truncate"
+                                            :class="{'text-[var(--text-highlight)]': currentView.type === 'category' && currentView.id === category.id, 'text-[var(--text-secondary)]': currentView.type !== 'category' || currentView.id !== category.id}">
+                                        <span x-text="category.name"></span>
+                                    </button>
+                                    <div class="flex items-center ml-auto pr-2" x-show="category.name !== 'Uncategorized'">
+                                        <button @click="renameCategory(category.id, category.name)" class="p-2 lg:opacity-0 lg:group-hover:opacity-100 focus:opacity-100 text-[var(--text-secondary)] hover:text-[var(--text-highlight)]" title="Rename category">
+                                            <span class="material-icons" style="font-size: 16px;">edit</span>
+                                        </button>
+                                        <button @click="deleteCategory(category.id)" class="p-2 lg:opacity-0 lg:group-hover:opacity-100 focus:opacity-100 text-[var(--text-secondary)] hover:text-red-500" title="Delete category">
+                                            <span class="material-icons" style="font-size: 16px;">delete</span>
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="mt-1 space-y-1 rounded" x-show="openCategoryIDs.includes(category.id)" x-transition
+                                     :data-category-id="category.id"
+                                     @dragover.prevent="dragOverCategoryId = category.id"
+                                     @dragleave="dragOverCategoryId = null"
+                                     @drop.prevent="dropFeed(category.id)"
+                                     :class="{ 'bg-[var(--bg-darkest)]/30 outline-dashed outline-1 outline-[var(--text-highlight)]': dragOverCategoryId === category.id && draggingFeedId }">
+                                    <template x-for="feed in getFeedsInCategory(category.id)" :key="feed.id">
+                                        <div class="group flex items-center rounded-md pr-2 text-[var(--text-main)] hover:bg-[var(--bg-darkest)]/30"
+                                             :class="{ 'bg-[var(--highlight-bg)] text-[var(--highlight-text)]': currentView.type === 'feed' && currentView.id === feed.id }">
+                                            <a href="#" @click.prevent="setView('feed', feed.id)"
+                                               draggable="true"
+                                               @dragstart="dragStartFeed(feed.id, $event)"
+                                               @dragend="dragEndAll()"
+                                               @touchstart="handleTouchStart(feed.id, $event)"
+                                               @contextmenu.prevent
+                                               class="flex-1 truncate py-1.5 pl-4 pr-2 text-sm font-medium"
+                                               :class="{ 'dragging': draggingFeedId === feed.id }">
+                                                <span x-text="feed.title"></span>
+                                            </a>
+                                            <button @click="softDeleteFeed(feed.id)"
+                                                    class="p-2 lg:opacity-0 lg:group-hover:opacity-100 focus:opacity-100 text-[var(--text-secondary)] hover:text-red-500" title="Remove Feed">
+                                                <span class="material-icons" style="font-size: 18px;">delete</span>
+                                            </button>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+
+                <!-- Removed Feeds Section -->
+                <template x-if="appData.removedFeeds && appData.removedFeeds.length > 0">
+                    <div class="pt-4" x-cloak>
+                         <hr class="border-[var(--divider-color)] mx-4 my-2">
+                         <h3 class="px-3 text-xs font-semibold uppercase text-[var(--text-secondary)]">Removed Feeds</h3>
+                         <div class="mt-1 space-y-1">
+                            <template x-for="feed in appData.removedFeeds" :key="feed.id">
+                                <div class="group flex items-center rounded-md pr-2 text-[var(--text-secondary)] hover:bg-[var(--bg-darkest)]/50">
+                                    <span class="flex-1 truncate py-1.5 pl-4 pr-2 text-sm italic" x-text="feed.title"></span>
+                                    <button @click="restoreFeed(feed.id)" class="p-2 lg:opacity-0 lg:group-hover:opacity-100 focus:opacity-100 hover:text-[var(--text-highlight)]" title="Restore Feed">
+                                        <span class="material-icons" style="font-size: 18px;">restore</span>
+                                    </button>
+                                    <button @click="confirmPermanentDeleteFeed(feed.id)" class="p-2 lg:opacity-0 lg:group-hover:opacity-100 focus:opacity-100 hover:text-red-500" title="Delete Permanently">
+                                        <span class="material-icons" style="font-size: 18px;">delete_forever</span>
+                                    </button>
+                                </div>
+                            </template>
+                         </div>
+                    </div>
+                </template>
+
+                <!-- Removed Streams Section -->
+                <template x-if="appData.removedStreams && appData.removedStreams.length > 0">
+                    <div class="pt-4" x-cloak>
+                         <hr class="border-[var(--divider-color)] mx-4 my-2">
+                         <h3 class="px-3 text-xs font-semibold uppercase text-[var(--text-secondary)]">Removed Streams</h3>
+                         <div class="mt-1 space-y-1">
+                            <template x-for="stream in appData.removedStreams" :key="stream.id">
+                                <div class="group flex items-center rounded-md pr-2 text-[var(--text-secondary)] hover:bg-[var(--bg-darkest)]/50">
+                                    <span class="flex-1 truncate py-1.5 pl-4 pr-2 text-sm italic" x-text="stream.name"></span>
+                                    <button @click="restoreStream(stream.id)" class="p-2 lg:opacity-0 lg:group-hover:opacity-100 focus:opacity-100 hover:text-[var(--text-highlight)]" title="Restore Stream">
+                                        <span class="material-icons" style="font-size: 18px;">restore</span>
+                                    </button>
+                                    <button @click="confirmPermanentDeleteStream(stream.id)" class="p-2 lg:opacity-0 lg:group-hover:opacity-100 focus:opacity-100 hover:text-red-500" title="Delete Permanently">
+                                        <span class="material-icons" style="font-size: 18px;">delete_forever</span>
+                                    </button>
+                                </div>
+                            </template>
+                         </div>
+                    </div>
+                </template>
+            </nav>
+
+            <!-- Sidebar Footer Forms -->
+            <div class="mt-auto space-y-2 border-t border-[var(--divider-color)] p-4">
+                 <form @submit.prevent="addCustomStream()">
+                     <div class="relative">
+                         <input type="text" placeholder="New custom stream..." x-model="newCustomStreamName"
+                                class="w-full rounded-md border-[var(--divider-color)] bg-[var(--bg-darkest)] pr-10 text-sm text-[var(--text-bright)] placeholder-[var(--text-secondary)] focus:border-[var(--highlight-ring)] focus:ring-[var(--highlight-ring)]">
+                         <button type="submit" class="absolute inset-y-0 right-0 flex items-center pr-3 text-[var(--text-secondary)] hover:text-[var(--text-highlight)]">
+                             <i class="material-icons" style="font-size: 20px;">add</i>
+                         </button>
+                     </div>
+                 </form>
+                 <p x-show="customStreamError" x-text="customStreamError" class="mt-2 text-xs text-red-500" x-cloak></p>
+                 <form @submit.prevent="addCategory()">
+                    <div class="relative">
+                        <input type="text" placeholder="New category..." x-model="newCategoryName" class="w-full rounded-md border-[var(--divider-color)] bg-[var(--bg-darkest)] pr-10 text-sm text-[var(--text-bright)] placeholder-[var(--text-secondary)] focus:border-[var(--highlight-ring)] focus:ring-[var(--highlight-ring)]">
+                        <button type="submit" class="absolute inset-y-0 right-0 flex items-center pr-3 text-[var(--text-secondary)] hover:text-[var(--text-highlight)]">
+                            <i class="material-icons" style="font-size: 20px;">add</i>
+                        </button>
+                    </div>
+                </form>
+                 <p x-show="categoryError" x-text="categoryError" class="mt-2 text-xs text-red-500" x-cloak></p>
+             </div>
+        </aside>
+
+        <!-- Main Content Area -->
+        <main class="flex-1 overflow-y-auto lg:pl-72">
+            <!-- Main Header -->
+             <header class="sticky top-0 z-10 flex h-16 shrink-0 items-center justify-between border-b border-[var(--divider-color)] bg-[var(--bg-darkest)]/80 px-4 backdrop-blur-sm sm:px-6 lg:px-8">
+                 <button type="button" class="-ml-2.5 p-2.5 text-[var(--text-secondary)] hover:text-[var(--text-bright)] lg:hidden" @click="isMobileMenuOpen = true">
+                    <i class="material-icons" style="font-size: 24px;">menu</i>
+                </button>
+                 <div class="hidden min-w-0 flex-1 items-center gap-2 lg:flex">
+                    <button x-show="currentView.type === 'author' || currentView.type === 'feed' || currentView.type === 'custom_stream' || currentView.type === 'category'" @click="setView('all'); searchQuery=''" class="p-1 text-[var(--text-secondary)] hover:text-[var(--text-bright)] rounded-full hover:bg-[var(--bg-medium)]" title="Clear filter" x-transition:enter="transition ease-out duration-100" x-transition:enter-start="opacity-0 scale-95" x-transition:enter-end="opacity-100 scale-100" x-transition:leave="transition ease-in duration-75" x-transition:leave-start="opacity-100 scale-100" x-transition:leave-end="opacity-0 scale-95" x-cloak>
+                        <span class="material-icons" style="font-size: 20px;">close</span>
+                    </button>
+                    <div class="min-w-0 flex-1">
+                        <h1 class="truncate text-xl font-semibold text-[var(--text-bright)]" x-text="currentTitle"></h1>
+                    </div>
+                 </div>
+                 <div class="flex shrink-0 items-center gap-2 pl-4">
+                     <div class="relative">
+                        <span class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+                            <i class="material-icons text-[var(--text-secondary)]" style="font-size: 20px;">search</i>
+                        </span>
+                        <input type="search" placeholder="Search..." x-model.debounce.300ms="searchQuery" class="w-40 rounded-md border-[var(--divider-color)] bg-[var(--bg-medium)] pl-10 text-sm text-[var(--text-bright)] placeholder-[var(--text-secondary)] focus:border-[var(--highlight-ring)] focus:ring-[var(--highlight-ring)] sm:w-52">
+                    </div>
+                     <select x-model="sortOrder" class="hidden rounded-md border-[var(--divider-color)] bg-[var(--bg-medium)] text-sm text-[var(--text-bright)] focus:border-[var(--highlight-ring)] focus:ring-[var(--highlight-ring)] sm:block">
+                        <option value="newest">Newest First</option>
+                        <option value="oldest">Oldest First</option>
+                    </select>
+                     <button class="p-2 text-[var(--text-secondary)] hover:text-[var(--text-bright)]" @click="refreshAllFeeds(false)" :disabled="isRefreshing">
+                        <i class="material-icons" :class="{ 'animate-spin': isRefreshing }" style="font-size: 20px;">refresh</i>
+                    </button>
+                 </div>
+             </header>
+
+            <!-- Article Grid (Corrected for Foldables/Tablets) -->
+            <div class="grid grid-cols-1 gap-6 p-4 sm:grid-cols-2 lg:grid-cols-3" x-cloak>
+                 <template x-if="filteredArticles.length === 0">
+                    <p class="text-[var(--text-secondary)]" x-text="getEmptyMessage()"></p>
+                </template>
+                 <template x-for="article in filteredArticles" :key="article.id">
+                     <div class="flex flex-col overflow-hidden rounded-lg bg-[var(--bg-medium)] shadow-lg">
+                         <a href="#" @click.prevent="openModal(article)">
+                             <template x-if="article.image_url">
+                                <img class="h-64 w-full object-cover" :src="article.image_url" alt="" @error="$event.target.style.display='none'; $event.target.nextElementSibling.style.display='flex'">
+                                <div class="hidden h-64 w-full items-center justify-center bg-[var(--bg-darkest)] text-[var(--text-secondary)]">(Image failed)</div>
+                             </template>
+                             <template x-if="!article.image_url">
+                                <div class="flex h-64 w-full items-center justify-center bg-[var(--bg-darkest)] text-[var(--text-secondary)]">(No Image)</div>
+                             </template>
+                         </a>
+                         <div class="flex flex-1 flex-col justify-between p-5">
+                             <div class="flex-1">
+                                <h3 class="text-xl font-semibold text-[var(--text-bright)]">
+                                    <a href="#" @click.prevent="openModal(article)" class="hover:underline" x-text="article.title"></a>
+                                </h3>
+                                <p class="mt-3 text-sm text-[var(--text-main)] line-clamp-3" x-text="article.summary"></p>
+                            </div>
+                             <div class="mt-4">
+                                <a href="#" @click.prevent="setView('feed', article.feed_id)" class="inline-block rounded-full px-3 py-1 text-xs font-medium" :style="{ backgroundColor: 'var(--feed-pill-bg)', color: 'var(--feed-pill-text)', '&:hover': { backgroundColor: 'var(--feed-pill-hover-bg)' }}" x-text="article.feed_title"></a>
+                            </div>
+                             <div class="mt-4 flex items-center justify-between text-sm text-[var(--text-secondary)]">
+                                 <button @click.prevent="setView('author', null, article.author)" class="truncate hover:underline disabled:no-underline disabled:cursor-default" :disabled="!article.author || article.author === 'Unknown Author'" x-text="article.author || 'Unknown Author'"></button>
+                                 <span x-text="new Date(article.published).toLocaleDateString()"></span>
+                             </div>
+                         </div>
+                         <div class="flex items-center justify-end gap-2 border-t border-[var(--divider-color)] p-3 px-5">
+                             <button class="p-1" @click.prevent="toggleFavorite(article)" :class="article.is_favorite ? 'fav-selected' : 'text-[var(--text-secondary)] hover:text-[var(--text-highlight)]'"><i class="material-icons" style="font-size: 20px;" x-text="article.is_favorite ? 'star' : 'star_border'"></i></button>
+                             <button class="p-1" @click.prevent="toggleBookmark(article)" :class="article.is_read_later ? 'text-[var(--text-highlight)]' : 'text-[var(--text-secondary)] hover:text-[var(--text-highlight)]'"><i class="material-icons" style="font-size: 20px;" x-text="article.is_read_later ? 'bookmark' : 'bookmark_border'"></i></button>
+                             <button class="p-1 text-[var(--text-secondary)] hover:text-[var(--text-highlight)]" @click="shareArticle(article)"><span class="material-icons" style="font-size: 20px;" x-text="copiedArticleId === article.id ? 'check' : 'share'"></span></button>
+                             <a :href="article.link" target="_blank" class="p-1 text-[var(--text-secondary)] hover:text-[var(--text-highlight)]"><i class="material-icons" style="font-size: 20px;">open_in_new</i></a>
+                         </div>
+                     </div>
+                 </template>
+            </div>
+
+            <!-- "Load More" Button -->
+            <div class="pb-8 text-center" x-show="fullFilteredList.length > articlesToShow" x-cloak>
+                <p class="mb-2 text-xs text-[var(--text-secondary)]">
+                    Showing <span x-text="filteredArticles.length"></span> of <span x-text="fullFilteredList.length"></span> articles
+                </p>
+                <button @click="loadMoreArticles()"
+                        class="rounded-md bg-[var(--bg-highlight)] px-5 py-2.5 text-sm font-medium text-[var(--text-bright)] hover:bg-[var(--bg-highlight-hover)] focus:outline-none focus:ring-2 focus:ring-[var(--highlight-ring)] focus:ring-opacity-50">
+                    Load More (75)
+                </button>
+            </div>
+        </main>
+    </div>
+
+    <!-- Article Modal -->
+    <div x-show="isModalOpen" @keydown.escape.window="isModalOpen = false" class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/80 p-4 pt-12 sm:p-8" x-cloak>
+        <div class="fixed inset-0" @click="isModalOpen = false" x-transition:enter="ease-out duration-300" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100" x-transition:leave="ease-in duration-200" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"></div>
+        <div class="relative z-10 w-full max-w-3xl overflow-hidden rounded-lg bg-[var(--bg-medium)] shadow-xl" x-show="isModalOpen" x-transition:enter="ease-out duration-300" x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95" x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100" x-transition:leave="ease-in duration-200" x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100" x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95">
+            <template x-if="modalArticle">
+                <div>
+                    <!-- Modal Header -->
+                    <div class="border-b border-[var(--divider-color)] p-4 sm:p-5">
+                        <h2 class="text-lg font-semibold text-[var(--text-bright)]" x-text="modalArticle.title"></h2>
+                        <div class="mt-2 flex flex-col gap-3 sm:mt-1 sm:flex-row sm:items-center sm:justify-between sm:gap-0">
+                            <div class="text-sm text-[var(--text-secondary)]">
+                                <span x-text="modalArticle.feed_title"></span>
+                                <span class="mx-1.5">&middot;</span>
+                                <span x-text="modalArticle.author || 'Unknown Author'"></span>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <button class="p-1.5" @click.prevent="toggleFavorite(modalArticle)" :class="modalArticle.is_favorite ? 'fav-selected' : 'text-[var(--text-secondary)] hover:text-[var(--text-highlight)]'"><i class="material-icons" style="font-size: 20px;" x-text="modalArticle.is_favorite ? 'star' : 'star_border'"></i></button>
+                                <button class="p-1.5" @click.prevent="toggleBookmark(modalArticle)" :class="modalArticle.is_read_later ? 'text-[var(--text-highlight)]' : 'text-[var(--text-secondary)] hover:text-[var(--text-highlight)]'"><i class="material-icons" style="font-size: 20px;" x-text="modalArticle.is_read_later ? 'bookmark' : 'bookmark_border'"></i></button>
+                                <button class="p-1.5 text-[var(--text-secondary)] hover:text-[var(--text-highlight)]" @click="shareArticle(modalArticle)"><span class="material-icons" style="font-size: 20px;" x-text="copiedArticleId === modalArticle.id ? 'check' : 'share'"></span></button>
+                                <a :href="modalArticle.link" target="_blank" class="p-1.5 text-[var(--text-secondary)] hover:text-[var(--text-highlight)]"><i class="material-icons" style="font-size: 20px;">open_in_new</i></a>
+                                <button class="ml-2 h-8 w-8 flex-shrink-0 rounded-full bg-[var(--bg-darkest)] flex items-center justify-center text-[var(--text-secondary)] hover:bg-[var(--bg-highlight)] hover:text-[var(--text-bright)]" @click="isModalOpen = false">
+                                    <i class="material-icons" style="font-size: 20px;">close</i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Modal Content -->
+                    <div class="max-h-[75vh] overflow-y-auto p-4 sm:p-5">
+                         <template x-if="modalArticle.image_url">
+                            <img class="w-full rounded-lg mb-4" :src="modalArticle.image_url" alt="" @error="$event.target.style.display='none'">
+                        </template>
+                        <div class="prose prose-sm sm:prose-base prose-invert max-w-none text-[var(--text-main)]" x-html="renderModalContent(modalArticle)"></div>
+                        <a :href="modalArticle.link" target="_blank" class="mt-4 inline-block text-[var(--text-highlight)] hover:text-[#8bebfd]">Read full article &rarr;</a>
+                    </div>
+                </div>
+            </template>
+        </div>
+    </div>
+
+</body>
+</html>
+

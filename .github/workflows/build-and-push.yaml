@@ -26,9 +26,5 @@ jobs:
         with:
           context: .
           push: true
-          tags: |       
-            # ----------------- IMPORTANT -----------------
-            # CHANGE "your-dockerhub-username" to your actual Docker Hub username
-            # CHANGE "volumeread21" to your desired Docker Hub repository name
-            # -----------------------------------------------
+          tags: |
             volumedata21/volumeread21:latest

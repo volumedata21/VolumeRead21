@@ -1,0 +1,111 @@
+/* --- Main Application Styles --- */
+
+:root {
+    /* Palette */
+    --bg-darkest: #121826;
+    --bg-medium: #212936;
+    --bg-highlight: #233b4b;
+    --bg-highlight-hover: #2b4a5f;
+    --text-main: #979da8;
+    --text-secondary: #6c727f;
+    --text-highlight: #5fe4fd;
+    --text-bright: #FEFFFF;
+    --divider-color: #2a3445;
+    --delete-color: #DD3D2D;
+    --feed-pill-bg: var(--bg-highlight);
+    --feed-pill-text: var(--text-highlight);
+    --feed-pill-hover-bg: var(--bg-highlight-hover);
+    /* Mapped */
+    --highlight-bg: var(--bg-highlight);
+    --highlight-bg-hover: var(--bg-highlight-hover);
+    --highlight-text: var(--text-highlight);
+    --highlight-ring: var(--text-highlight);
+    --main-nav-selected-bg: var(--bg-highlight);
+    --main-nav-selected-icon: var(--text-highlight);
+    --main-nav-selected-text: var(--text-highlight);
+}
+
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+::-webkit-scrollbar-track {
+    background: var(--bg-darkest);
+}
+::-webkit-scrollbar-thumb {
+    background: var(--text-secondary);
+    border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+    background: var(--text-main);
+}
+
+[x-cloak] {
+    display: none !important;
+}
+.dragging {
+    opacity: 0.5;
+}
+
+.confirm-delete {
+    background-color: var(--delete-color) !important;
+    color: white !important;
+}
+.confirm-delete span,
+.confirm-delete button span,
+.confirm-delete a {
+    color: white !important;
+}
+
+.prose img {
+    margin-top: 1em;
+    margin-bottom: 1em;
+    border-radius: 0.5rem;
+    max-width: 100% !important;  /* Fix for overflowing images */
+    height: auto !important;     /* Fix for overflowing images */
+    width: auto !important;     /* Fix for overflowing images */
+}
+.prose figure,
+.prose div {
+    max-width: 100%;
+}
+.prose figure img,
+.prose div img {
+    max-width: 100%;
+    height: auto;
+}
+
+.prose a {
+    color: var(--text-highlight);
+}
+.prose a:hover {
+    color: #8bebfd;
+}
+.prose {
+    color: var(--text-main);
+}
+.prose strong,
+.prose h1,
+.prose h2,
+.prose h3,
+.prose h4 {
+    color: var(--text-bright);
+}
+.prose code {
+    color: var(--text-secondary);
+}
+
+.main-nav-selected {
+    background-color: var(--main-nav-selected-bg) !important;
+    color: var(--main-nav-selected-text) !important;
+}
+.main-nav-selected i,
+.main-nav-selected svg {
+    color: var(--main-nav-selected-icon) !important;
+    fill: var(--main-nav-selected-icon) !important;
+    stroke: var(--main-nav-selected-icon) !important;
+}
+
+.fav-selected {
+    color: #FDB366 !important;
+}

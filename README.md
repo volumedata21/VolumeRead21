@@ -44,7 +44,6 @@ services:
       - "2122:5000"
     volumes:
       - ./data:/data
-    restart: unless-stopped
     environment:
       - FLASK_DEBUG=0
       - DATA_DIR=/data
@@ -64,7 +63,6 @@ services:
       - "2122:5000"
     volumes:
       - rss_data:/data
-    restart: unless-stopped
     environment:
       - FLASK_DEBUG=0
       - DATA_DIR=/data

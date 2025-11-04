@@ -1,19 +1,19 @@
-name: Build and Push to Docker Hub
+name: Build and Push to Docker Hub on Release
 
-# This action will run on every push to your "main" branch
+# This action will run only when a new release is "published"
 on:
-  push:
-    branches: [ "main" ]
+  release:
+    types: [ published ]
 
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
     steps:
-      # 1. Checks out your repository's code
+      # 1. Checks out your repository's code at the specific tag of the release
       - name: Check out repository
         uses: actions/checkout@v4
 
-      # 2. Logs in to Docker Hub using the secrets you just set
+      # 2. Logs in to Docker Hub
       - name: Log in to Docker Hub
         uses: docker/login-action@v3
         with:
@@ -27,4 +27,5 @@ jobs:
           context: .
           push: true
           tags: |
+            volumedata21/volumeread21:${{ github.event.release.tag_name }}
             volumedata21/volumeread21:latest

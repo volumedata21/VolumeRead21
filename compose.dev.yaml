@@ -1,0 +1,17 @@
+services:
+  volumeread21:
+    build: .
+    image: volumeread21-local-dev
+    container_name: volumeread21-dev
+    ports:
+      - "2122:5000"
+    volumes:
+      - .:/app
+      - ./data:/data
+      
+    environment:
+      # 5. FLASK_DEBUG=1 enables Flask's hot-reloader.
+      #    When combined with the volume mount above, Flask will
+      #    see the file change and restart the server for you.
+      - FLASK_DEBUG=1
+      - DATA_DIR=/data

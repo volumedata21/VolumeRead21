@@ -260,14 +260,23 @@ function rssApp() {
             if (!this.newFeedUrl || !this.newFeedUrl.trim()) { this.feedError = 'Please enter a URL.'; return; }
             this.feedError = '';
             try {
-                new URL(this.newFeedUrl);
+                // We removed the 'new URL(this.newFeedUrl);' check
+                // to allow schemeless URLs like 'cincyjungle.com'
+                // The backend will handle validation and adding 'https://'
                 const response = await fetch('/api/add_feed', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ url: this.newFeedUrl.trim() }) });
+                
                 const result = await response.json();
-                if (!response.ok) { this.feedError = result.error || 'Failed to add feed'; throw new Error(this.feedError); }
+                
+                // Now, the 'feedError' will be set by the *backend's* response
+                if (!response.ok) { 
+                    this.feedError = result.error || 'Failed to add feed'; 
+                    throw new Error(this.feedError); 
+                }
+                
                 this.newFeedUrl = '';
                 await this.fetchData();
             } catch (e) {
-                this.feedError = (e instanceof TypeError) ? 'Invalid URL format.' : (this.feedError || e.message || 'An error occurred.');
+                // Error is already set, just log the error object
                 console.error('Error adding feed:', e);
             }
         },

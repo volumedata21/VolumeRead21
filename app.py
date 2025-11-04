@@ -4,10 +4,14 @@ import feedparser
 import html
 import datetime
 import os
+import requests
+from bs4 import BeautifulSoup
+from urllib.parse import urljoin
 from flask import Flask, render_template, request, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.orm import joinedload
 from sqlalchemy.sql import func
+
 
 ## --- App Setup ---
 basedir = os.path.abspath(os.path.dirname(__file__))
@@ -212,8 +216,6 @@ def get_data():
                 'full_content': a.full_content, 'image_url': a.image_url, 'author': a.author,
                 'published': a.published.isoformat() if a.published else datetime.datetime.now().isoformat(),
                 'is_favorite': a.is_favorite, 'is_read_later': a.is_read_later,
-                # --- THIS IS THE FIX ---
-                # Checks if a.feed exists before trying to access .title
                 'feed_title': a.feed.title if a.feed else 'Unknown Feed', 
                 'feed_id': a.feed_id
             } for a in articles
@@ -227,16 +229,18 @@ def get_data():
 
 @app.route('/api/add_feed', methods=['POST'])
 def add_feed():
-    """Adds a new feed from a URL."""
+    """Adds a new feed from a URL, with auto-discovery."""
     data = request.get_json()
     url = data.get('url')
     category_id = data.get('category_id')
 
     if not url:
         return jsonify({'error': 'URL is required'}), 400
-    if Feed.query.filter_by(url=url).first():
-        return jsonify({'error': 'Feed already exists (might be in Removed Feeds)'}), 400
 
+    # Strip leading/trailing whitespace
+    url = url.strip()
+
+    # Ensure "Uncategorized" exists
     target_category = None
     if category_id:
         target_category = Category.query.get(category_id)
@@ -246,22 +250,85 @@ def add_feed():
             target_category = Category(name='Uncategorized')
             db.session.add(target_category)
             db.session.commit()
-            
+
     try:
-        feed_data = feedparser.parse(url)
-        feed_title = clean_text(feed_data.feed.get('title', 'Untitled Feed'), strip_html_tags=True)
+        feed_data = None
+        feed_url = url
+        headers = {
+            'User-Agent': 'VolumeRead21-Feed-Finder/1.0 (https://github.com/your-repo/VolumeRead21)'
+        }
+
+        # Attempt 1: Parse the URL directly
+        # We start by adding https:// if no scheme is present, as feedparser
+        # also benefits from a complete URL.
+        if not feed_url.startswith(('http://', 'https://')):
+            feed_url = 'https://' + feed_url
+
+        parsed_data = feedparser.parse(feed_url)
+        if parsed_data.feed and (parsed_data.entries or parsed_data.feed.get('title')):
+            feed_data = parsed_data
+            print(f"Successfully parsed direct URL: {feed_url}")
+        else:
+            print(f"Direct parse failed for {feed_url}. Attempting discovery...")
+            
+            # Attempt 2: Discover feed from HTML
+            # The original 'url' from the user (which we've stripped)
+            # is used here for the requests logic.
+            discovery_url = url # Use the original, stripped user input
+            try:
+                # *** THIS IS THE CHANGE ***
+                # Add "https://" if missing for requests library.
+                # This is more modern than http:// and handles redirects well.
+                if not discovery_url.startswith(('http://', 'https://')):
+                    discovery_url = 'https://' + discovery_url
+
+                response = requests.get(discovery_url, headers=headers, timeout=5)
+                response.raise_for_status()
+                
+                # Check if we were redirected to an actual feed
+                content_type = response.headers.get('Content-Type', '').lower()
+                if 'xml' in content_type or 'rss' in content_type:
+                    print("URL redirected to a feed, parsing that.")
+                    feed_data = feedparser.parse(response.content)
+                    feed_url = response.url
+                else:
+                    # Parse HTML to find <link> tag
+                    soup = BeautifulSoup(response.text, 'html.parser')
+                    link_tag = soup.find('link', {'rel': 'alternate', 'type': re.compile(r'application/(rss|atom)\+xml')})
+                    
+                    if link_tag and link_tag.get('href'):
+                        # Use response.url as the base in case of http->https redirect
+                        discovered_url = urljoin(response.url, link_tag['href'])
+                        print(f"Discovered feed URL from HTML: {discovered_url}")
+                        
+                        feed_data = feedparser.parse(discovered_url)
+                        feed_url = discovered_url
+                    
+            except requests.exceptions.RequestException as e:
+                print(f"Error during feed discovery: {e}")
+                pass # Fail gracefully and let the final check handle it
+
+        # Final check: Did we find a feed?
+        if not feed_data or not feed_data.feed or (not feed_data.entries and not feed_data.feed.get('title')):
+            return jsonify({'error': 'Could not find a valid feed or discover one from this URL.'}), 400
         
-        new_feed = Feed(title=feed_title, url=url, category_id=target_category.id)
+        # Check if this *feed URL* (discovered or not) already exists
+        if Feed.query.filter_by(url=feed_url).first():
+            return jsonify({'error': 'Feed already exists (might be in Removed Feeds)'}), 400
+
+        # --- Add the feed ---
+        feed_title = clean_text(feed_data.feed.get('title', 'Untitled Feed'), strip_html_tags=True)
+        new_feed = Feed(title=feed_title, url=feed_url, category_id=target_category.id)
         db.session.add(new_feed)
         db.session.commit()
         
         _update_articles_for_feed(new_feed, feed_data)
         return jsonify({'success': True, 'title': feed_title}), 201
-        
+
     except Exception as e:
         db.session.rollback()
         print(f"Error adding feed: {e}")
-        return jsonify({'error': 'Could not parse feed. Invalid URL or format?'}), 500
+        return jsonify({'error': 'An unexpected error occurred. Invalid URL or format?'}), 500
 
 @app.route('/api/feed/<int:feed_id>', methods=['DELETE'])
 def soft_delete_feed(feed_id):

@@ -43,15 +43,25 @@ services:
     ports:
       - "2122:5000"
     volumes:
-      - ./data:/data
+      - ./rss_data:/data
     environment:
       - FLASK_DEBUG=0
       - DATA_DIR=/data
-    user: "1000:1000"
+      - RSS_BRIDGE_URL=http://rssbridge
+    depends_on:
+      - rssbridge
+    restart: unless-stopped
+
+  rssbridge:
+    image: rssbridge/rss-bridge:latest
+    container_name: rssbridge-prod
+    # No ports exposed to the public internet for security
+    volumes:
+      - ./rss-bridge-config:/config
     restart: unless-stopped
 ```
 
-Keep `user: "1000:1000"` if you don't want to run as root. If you don't create a data folder before launching, you'll most likely have to chown the directly for user 1000 (or whoever your user is when you type in 'id').
+Keep `user: "1000:1000"` if you don't want to run as root. If you don't create a 'data' and 'rss-bridge-config' folder before launching, you'll most likely have to chown the directly for user 1000 (or whoever your user is when you type in 'id').
 
 ### compose.yaml with Docker volume
 ```
@@ -66,7 +76,23 @@ services:
     environment:
       - FLASK_DEBUG=0
       - DATA_DIR=/data
+      # Tells the app where to find the bridge service
+      - RSS_BRIDGE_URL=http://rssbridge
+    # Waits for the rssbridge service to be healthy first
+    depends_on:
+      - rssbridge
     restart: unless-stopped
+
+  rssbridge:
+    image: rssbridge/rss-bridge:latest
+    container_name: rssbridge-prod
+    # No ports exposed to the public internet for security
+    volumes:
+      # You MUST place your 'rss-bridge-config' directory
+      # (containing config.ini.php) next to this file.
+      - ./rss-bridge-config:/config
+    restart: unless-stopped
+
 volumes:
   rss_data:
 ```
@@ -110,20 +136,6 @@ services:
 3.  Build and run the app:
     ```bash
     docker compose up -d --build
-
-### Docker Run Command
-Get VolumeRead21 running with one simple command. Access it at http://[host-ip-address]:2122
-
-```
-docker run -d \
-  --name volumeread21 \
-  -p 2122:5000 \
-  -v rss_data:/data \
-  --restart unless-stopped \
-  -e FLASK_DEBUG=0 \
-  -e DATA_DIR=/data \
-  volumedata21/volumeread21:latest
-  ```
     
 
 ### I am not a professional developer. 

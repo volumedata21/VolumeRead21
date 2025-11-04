@@ -9,6 +9,17 @@ services:
     environment:
       - FLASK_DEBUG=0
       - DATA_DIR=/data
+      - RSS_BRIDGE_URL=http://rssbridge
+    depends_on:
+      - rssbridge
     restart: unless-stopped
+
+  rssbridge:
+    image: rssbridge/rss-bridge:latest
+    container_name: rssbridge-prod
+    volumes:
+      - ./rss-bridge-config:/config
+    restart: unless-stopped
+
 volumes:
   rss_data:

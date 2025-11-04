@@ -10,8 +10,21 @@ services:
       - ./data:/data
       
     environment:
-      # 5. FLASK_DEBUG=1 enables Flask's hot-reloader.
-      #    When combined with the volume mount above, Flask will
-      #    see the file change and restart the server for you.
       - FLASK_DEBUG=1
       - DATA_DIR=/data
+      # --- ADD THIS LINE ---
+      # This tells our Flask app how to find the RSS-Bridge service.
+      - RSS_BRIDGE_URL=http://rssbridge
+      
+    # --- ADD THIS ---
+    # This makes sure our app waits for the rssbridge service to start.
+    depends_on:
+      - rssbridge
+  rssbridge:
+    image: rssbridge/rss-bridge:latest
+    container_name: rssbridge-dev
+    ports:
+      - "2123:80"
+    volumes:
+      - ./rss-bridge-config:/config
+    restart: unless-stopped

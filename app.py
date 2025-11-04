@@ -6,7 +6,7 @@ import datetime
 import os
 import requests
 from bs4 import BeautifulSoup
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlencode, quote
 from flask import Flask, render_template, request, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.orm import joinedload
@@ -165,6 +165,47 @@ def get_category_data(category):
         'name': category.name
     }
 
+def get_rss_bridge_feed(base_url, target_url):
+    """
+    Asks the RSS-Bridge service to find a bridge for the target URL
+    and returns a parsable feed URL if successful.
+    """
+    try:
+        # 1. Ask RSS-Bridge to find a bridge for the URL
+        # We quote the target_url to make it safe for a query string
+        find_url = f"{base_url}/?action=findbridge&url={quote(target_url)}"
+        response = requests.get(find_url, timeout=10) # 10s timeout
+        response.raise_for_status()
+        
+        data = response.json()
+        bridge_name = data.get('bridge')
+        params = data.get('parameters', {})
+
+        if not bridge_name:
+            print(f"RSS-Bridge: No bridge found for {target_url}")
+            return None
+
+        # 2. Build the final feed URL using the bridge it found
+        query_params = {
+            'action': 'display',
+            'bridge': bridge_name,
+            'format': 'Atom',
+            **params
+        }
+        
+        query_string = urlencode(query_params)
+        final_bridge_url = f"{base_url}/?{query_string}"
+        
+        print(f"RSS-Bridge: Generated feed URL: {final_bridge_url}")
+        return final_bridge_url
+
+    except requests.exceptions.RequestException as e:
+        print(f"Error contacting RSS-Bridge: {e}")
+        return None
+    except Exception as e:
+        print(f"Error parsing RSS-Bridge response: {e}")
+        return None
+
 ## --- Initialization Function ---
 
 def initialize_database():
@@ -246,73 +287,102 @@ def add_feed():
         target_category = Category.query.get(category_id)
     if not target_category:
         target_category = Category.query.filter_by(name='Uncategorized').first()
-        if not target_category: 
+        if not target_category:
             target_category = Category(name='Uncategorized')
             db.session.add(target_category)
             db.session.commit()
 
     try:
         feed_data = None
-        feed_url = url
+        feed_url = url  # This is the original URL the user gave
+
         headers = {
-            'User-Agent': 'VolumeRead21-Feed-Finder/1.0 (https://github.com/your-repo/VolumeRead21)'
+            'User-Agent': 'VolumeRead21-Feed-Finder/1.0'
         }
 
-        # Attempt 1: Parse the URL directly
-        # We start by adding https:// if no scheme is present, as feedparser
-        # also benefits from a complete URL.
+        # --- Step 1: Parse the URL directly ---
+        # We start by adding https:// if no scheme is present
         if not feed_url.startswith(('http://', 'https://')):
-            feed_url = 'https://' + feed_url
+            feed_url_with_scheme = 'https://' + feed_url
+        else:
+            feed_url_with_scheme = feed_url
 
-        parsed_data = feedparser.parse(feed_url)
+        parsed_data = feedparser.parse(feed_url_with_scheme, request_headers=headers)
         if parsed_data.feed and (parsed_data.entries or parsed_data.feed.get('title')):
             feed_data = parsed_data
+            feed_url = feed_url_with_scheme  # We're adding the direct feed
             print(f"Successfully parsed direct URL: {feed_url}")
         else:
-            print(f"Direct parse failed for {feed_url}. Attempting discovery...")
+            print(f"Direct parse failed for {feed_url_with_scheme}.")
+
+            # --- STEP 1.5: Try common feed suffixes ---
+            # This is the new, upgraded logic
+            common_suffixes = ['/feed', '/atom.xml', '/rss.xml', '/rss']
+            base_url = feed_url_with_scheme.rstrip('/')
             
-            # Attempt 2: Discover feed from HTML
-            # The original 'url' from the user (which we've stripped)
-            # is used here for the requests logic.
-            discovery_url = url # Use the original, stripped user input
-            try:
-                # *** THIS IS THE CHANGE ***
-                # Add "https://" if missing for requests library.
-                # This is more modern than http:// and handles redirects well.
-                if not discovery_url.startswith(('http://', 'https://')):
-                    discovery_url = 'https://' + discovery_url
-
-                response = requests.get(discovery_url, headers=headers, timeout=5)
-                response.raise_for_status()
+            for suffix in common_suffixes:
+                feed_url_with_suffix = base_url + suffix
+                print(f"Attempting common suffix: {feed_url_with_suffix}")
+                parsed_data = feedparser.parse(feed_url_with_suffix, request_headers=headers)
                 
-                # Check if we were redirected to an actual feed
-                content_type = response.headers.get('Content-Type', '').lower()
-                if 'xml' in content_type or 'rss' in content_type:
-                    print("URL redirected to a feed, parsing that.")
-                    feed_data = feedparser.parse(response.content)
-                    feed_url = response.url
-                else:
-                    # Parse HTML to find <link> tag
-                    soup = BeautifulSoup(response.text, 'html.parser')
-                    link_tag = soup.find('link', {'rel': 'alternate', 'type': re.compile(r'application/(rss|atom)\+xml')})
-                    
-                    if link_tag and link_tag.get('href'):
-                        # Use response.url as the base in case of http->https redirect
-                        discovered_url = urljoin(response.url, link_tag['href'])
-                        print(f"Discovered feed URL from HTML: {discovered_url}")
-                        
-                        feed_data = feedparser.parse(discovered_url)
-                        feed_url = discovered_url
-                    
-            except requests.exceptions.RequestException as e:
-                print(f"Error during feed discovery: {e}")
-                pass # Fail gracefully and let the final check handle it
+                if parsed_data.feed and (parsed_data.entries or parsed_data.feed.get('title')):
+                    feed_data = parsed_data
+                    feed_url = feed_url_with_suffix  # We found it!
+                    print(f"Successfully parsed {feed_url}")
+                    break  # Exit the loop
+            
+            # --- Step 2: Discover feed from HTML (if 1 and 1.5 failed) ---
+            if not feed_data:
+                print("Common suffixes failed. Attempting discovery...")
+                
+                discovery_url = feed_url_with_scheme  # Use the original URL for discovery
+                try:
+                    response = requests.get(discovery_url, headers=headers, timeout=5)
+                    response.raise_for_status()
 
-        # Final check: Did we find a feed?
+                    content_type = response.headers.get('Content-Type', '').lower()
+                    if 'xml' in content_type or 'rss' in content_type:
+                        print("URL redirected to a feed, parsing that.")
+                        feed_data = feedparser.parse(response.content, request_headers=headers)
+                        feed_url = response.url  # This is the new, redirected feed URL
+                    else:
+                        soup = BeautifulSoup(response.text, 'html.parser')
+                        link_tag = soup.find('link', {'rel': 'alternate', 'type': re.compile(r'application/(rss|atom)\+xml')})
+
+                        if link_tag and link_tag.get('href'):
+                            discovered_url = urljoin(response.url, link_tag['href'])
+                            print(f"Discovered feed URL from HTML: {discovered_url}")
+
+                            feed_data = feedparser.parse(discovered_url, request_headers=headers)
+                            feed_url = discovered_url  # This is the discovered feed URL
+
+                except requests.exceptions.RequestException as e:
+                    print(f"Error during feed discovery: {e}")
+                    pass  # Fail gracefully and let Step 3 take over
+
+        # --- Step 3: Try RSS-Bridge as a last resort ---
+        if not feed_data:
+            print("Discovery failed. Attempting RSS-Bridge...")
+            rss_bridge_base_url = os.environ.get('RSS_BRIDGE_URL')
+
+            if rss_bridge_base_url:
+                # Use the URL *with* scheme for RSS-Bridge
+                bridge_feed_url = get_rss_bridge_feed(rss_bridge_base_url, feed_url_with_scheme)
+
+                if bridge_feed_url:
+                    # Parse this NEWLY generated feed URL
+                    feed_data = feedparser.parse(bridge_feed_url, request_headers=headers)
+                    feed_url = bridge_feed_url  # This is CRITICAL
+                else:
+                    print("RSS-Bridge could not generate a feed.")
+            else:
+                print("RSS_BRIDGE_URL not set, skipping step 3.")
+
+        # --- Final check: Did we find *any* feed? ---
         if not feed_data or not feed_data.feed or (not feed_data.entries and not feed_data.feed.get('title')):
-            return jsonify({'error': 'Could not find a valid feed or discover one from this URL.'}), 400
-        
-        # Check if this *feed URL* (discovered or not) already exists
+            return jsonify({'error': 'Could not find, discover, or generate a feed for this URL.'}), 400
+
+        # Check if this *final* feed URL (direct, discovered, or generated) already exists
         if Feed.query.filter_by(url=feed_url).first():
             return jsonify({'error': 'Feed already exists (might be in Removed Feeds)'}), 400
 
@@ -321,7 +391,7 @@ def add_feed():
         new_feed = Feed(title=feed_title, url=feed_url, category_id=target_category.id)
         db.session.add(new_feed)
         db.session.commit()
-        
+
         _update_articles_for_feed(new_feed, feed_data)
         return jsonify({'success': True, 'title': feed_title}), 201
 
@@ -397,7 +467,10 @@ def refresh_all_feeds():
         
     for feed in feeds:
         try:
-            feed_data = feedparser.parse(feed.url)
+            # We pass a User-Agent to be a good citizen
+            headers = { 'User-Agent': 'VolumeRead21-Feed-Refresher/1.0' }
+            feed_data = feedparser.parse(feed.url, request_headers=headers)
+            
             if feed_data.status >= 400 or feed_data.status == 301:
                 errors.append(f"Error fetching {feed.title}: Status {feed_data.status}")
                 continue
@@ -630,7 +703,7 @@ def toggle_favorite(article_id):
 
 @app.route('/api/article/<int:article_id>/bookmark', methods=['POST'])
 def toggle_bookmark(article_id):
-    """Toggles the 'is_read_later' status of an article."""
+    """TToggles the 'is_read_later' status of an article."""
     article = Article.query.get_or_404(article_id)
     article.is_read_later = not article.is_read_later
     db.session.commit()
@@ -649,3 +722,4 @@ if __name__ == '__main__':
     # Use FLASK_DEBUG env var to control debug mode
     debug_mode = os.environ.get('FLASK_DEBUG') == '1'
     app.run(debug=debug_mode, host='0.0.0.0', port=5000)
+

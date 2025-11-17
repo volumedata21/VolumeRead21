@@ -142,12 +142,31 @@ def _update_articles_for_feed(feed_instance, feed_data):
         
         smart_summary = smart_truncate(summary_text, length=300)
         
+        image_url_found = find_image_url(entry)
+        
+        # --- NEW: Pinterest Hi-Res Fix ---
+        if image_url_found and 'i.pinimg.com' in image_url_found:
+            # Try to replace thumbnail size with 'originals' for best quality
+            # e.g., /236x/ -> /originals/
+            # e.g., /564x/ -> /originals/
+            hi_res_url = re.sub(r'\/(\d+x|236x)\/', '/originals/', image_url_found)
+            if hi_res_url != image_url_found:
+                print(f"Upgraded Pinterest image URL to: {hi_res_url}")
+                image_url_found = hi_res_url
+            else:
+                # Try replacing with 736x as another common high-res
+                hi_res_url = re.sub(r'\/(\d+x|236x)\/', '/736x/', image_url_found)
+                if hi_res_url != image_url_found:
+                    print(f"Upgraded Pinterest image URL to: {hi_res_url}")
+                    image_url_found = hi_res_url
+        # --- END: Pinterest Hi-Res Fix ---
+        
         new_article = Article(
             title=clean_text(entry.get('title', 'Untitled Article'), strip_html_tags=True),
             link=entry.link,
             summary=smart_summary,
             full_content=clean_text(content_html, strip_html_tags=False),
-            image_url=find_image_url(entry),
+            image_url=image_url_found, # Use the (potentially) upgraded URL
             author=clean_text(entry.get('author', 'Unknown Author'), strip_html_tags=True),
             published=published_time,
             feed_id=feed_instance.id
@@ -355,6 +374,23 @@ def add_feed():
         # If regex fails, just proceed with the original URL
         pass
     # --- END: Reddit URL Fix ---
+
+    # --- NEW: Pinterest URL Fix ---
+    try:
+        # Check if it's a Pinterest URL but NOT already the feed URL
+        if 'pinterest.com' in url and not url.endswith('/feed.rss'):
+            # Regex to find Pinterest user URLs (http, https, www, or none)
+            pinterest_match = re.match(r'(?:https?:\/\/)?(?:www\.)?pinterest\.com\/([a-zA-Z0-9_-]+)\/?.*', url, re.IGNORECASE)
+            if pinterest_match:
+                username = pinterest_match.group(1)
+                # Rebuild it as an RSS feed URL
+                url = f'https://www.pinterest.com/{username}/feed.rss'
+                print(f"Converted Pinterest URL to: {url}")
+    except Exception as e:
+        print(f"Error during Pinterest URL conversion (non-critical): {e}")
+        # If regex fails, just proceed with the original URL
+        pass
+    # --- END: Pinterest URL Fix ---
 
     # Ensure "Uncategorized" exists
     target_category = None

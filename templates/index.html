@@ -6,16 +6,19 @@
     <title>VolumeRead21</title>
 
     <script src="https://cdn.tailwindcss.com?plugins=forms,line-clamp,typography"></script>
+    <!-- *** MAKE SURE THIS PATH IS CORRECT *** -->
     <script src="/static/js/app.js" defer></script>
     <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
     
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
 
+    <!-- Favicons -->
     <link rel="shortcut icon" href="/static/favicon/favicon.ico">
     <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon/favicon.png">
     <link rel="apple-touch-icon" sizes="180x180" href="/static/favicon/apple-touch-icon.png">
     <link rel="icon" type="image/png" sizes="192x192" href="/static/favicon/android-chrome-192x192.png">
 
+    <!-- Styles -->
     <link rel="stylesheet" href="/static/css/style.css">
 
 </head>
@@ -23,18 +26,22 @@
     class="bg-[var(--bg-darkest)] text-[var(--text-main)]"
     x-data="rssApp"
     x-init="init()"
-    :class="{ 'overflow-hidden': isMobileMenuOpen || isModalOpen }"
+    :class="{ 'overflow-hidden': isMobileMenuOpen || isModalOpen || isAssignModalOpen }"
 >
 
+    <!-- Mobile Menu Overlay -->
     <div x-show="isMobileMenuOpen" @click="isMobileMenuOpen = false" x-transition:enter="transition-opacity ease-in-out duration-300" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100" x-transition:leave="transition-opacity ease-in-out duration-300" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0" class="fixed inset-0 z-30 bg-black/60 lg:hidden" x-cloak></div>
 
+    <!-- App Container -->
     <div class="flex h-screen">
 
+        <!-- Sidebar Navigation -->
         <aside
             class="fixed inset-y-0 left-0 z-40 flex w-72 transform flex-col border-r border-[var(--divider-color)] bg-[var(--bg-medium)] transition-transform duration-300 ease-in-out lg:translate-x-0"
             :class="{ '-translate-x-full': !isMobileMenuOpen, 'translate-x-0': isMobileMenuOpen }"
             @dragover.prevent @drop.prevent="dragEndAll()" x-cloak>
 
+            <!-- Sidebar Header -->
             <div class="flex h-16 shrink-0 items-center justify-between border-b border-[var(--divider-color)] px-4">
                 <a href="#" @click.prevent="setView('all'); searchQuery=''" class="flex items-center gap-3 group">
                     <i class="material-icons" style="font-size:28px;color:#DD3D2D;">rss_feed</i>
@@ -47,6 +54,7 @@
                 </div>
             </div>
 
+            <!-- Add Feed Form -->
             <div class="p-4">
                 <form @submit.prevent="addFeed()">
                     <div class="relative">
@@ -59,12 +67,14 @@
                 <p x-show="feedError" x-text="feedError" class="mt-2 text-xs text-red-500" x-cloak></p>
             </div>
 
+            <!-- Main Nav List -->
             <nav class="flex-1 space-y-1 overflow-y-auto px-4 pb-4">
                  <a href="#" @click.prevent="setView('all')" class="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium hover:bg-[var(--bg-highlight)]/50" :class="currentView.type === 'all' ? 'main-nav-selected' : 'text-[var(--text-main)]'"><i class="material-icons" style="font-size:20px;">apps</i> All Feeds</a>
                  <a href="#" @click.prevent="setView('favorites')" class="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium hover:bg-[var(--bg-highlight)]/50" :class="currentView.type === 'favorites' ? 'main-nav-selected' : 'text-[var(--text-main)]'"><i class="material-icons" style="font-size:20px;">star_outline</i> Favorites</a>
                  <a href="#" @click.prevent="setView('readLater')" class="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium hover:bg-[var(--bg-highlight)]/50" :class="currentView.type === 'readLater' ? 'main-nav-selected' : 'text-[var(--text-main)]'"><i class="material-icons" style="font-size:20px;">bookmark_border</i> Read Later</a>
                  <hr class="border-[var(--divider-color)] mx-4 my-2">
 
+                <!-- Streams Section -->
                 <div class="pt-2" x-cloak>
                     <h3 class="px-3 text-xs font-semibold uppercase text-[var(--text-secondary)]">Streams</h3>
                     <div class="mt-1 space-y-1">
@@ -112,6 +122,7 @@
 
                  <hr class="border-[var(--divider-color)] mx-4 my-2">
 
+                <!-- Feeds Section -->
                 <div class="pt-2" x-cloak>
                     <h3 class="px-3 text-xs font-semibold uppercase text-[var(--text-secondary)]">Feeds</h3>
                     <div class="mt-1 space-y-1">
@@ -147,18 +158,35 @@
                                      @drop.prevent="dropFeed(category.id)"
                                      :class="{ 'bg-[var(--bg-darkest)]/30 outline-dashed outline-1 outline-[var(--text-highlight)]': dragOverCategoryId === category.id && draggingFeedId }">
                                     <template x-for="feed in getFeedsInCategory(category.id)" :key="feed.id">
-                                        <div class="group flex items-center rounded-md pr-2 text-[var(--text-main)] hover:bg-[var(--bg-darkest)]/30"
-                                             :class="{ 'bg-[var(--highlight-bg)] text-[var(--highlight-text)]': currentView.type === 'feed' && currentView.id === feed.id }">
+                                        <!-- Feed Item Row -->
+                                        <div class="group flex items-center rounded-md text-[var(--text-main)] hover:bg-[var(--bg-darkest)]/30"
+                                             :class="{ 'bg-[var(--highlight-bg)] text-[var(--highlight-text)]': currentView.type === 'feed' && currentView.id === feed.id, 'opacity-70': selectedFeedIds.length > 0 && !selectedFeedIds.includes(feed.id) }">
+                                            
+                                            <!-- Checkbox (CLEANED) -->
+                                            <input type="checkbox" :value="feed.id" x-model="selectedFeedIds"
+                                                   @click.stop 
+                                                   class="ml-2 mr-1 h-4 w-4 rounded border-[var(--divider-color)] bg-[var(--bg-darkest)] text-[var(--text-highlight)] focus:ring-[var(--highlight-ring)]">
+
+                                            <!-- Draggable Link -->
                                             <a href="#" @click.prevent="setView('feed', feed.id)"
                                                draggable="true"
                                                @dragstart="dragStartFeed(feed.id, $event)"
                                                @dragend="dragEndAll()"
                                                @touchstart="handleTouchStart(feed.id, $event)"
                                                @contextmenu.prevent
-                                               class="flex-1 truncate py-1.5 pl-4 pr-2 text-sm font-medium"
-                                               :class="{ 'dragging': draggingFeedId === feed.id }">
-                                                <span x-text="feed.title"></span>
+                                               class="flex-1 truncate py-1.5 pl-2 pr-2 text-sm font-medium"
+                                               :class="{ 'dragging': draggingFeedId === feed.id, 'cursor-default': selectedFeedIds.length > 0 }"
+                                               :draggable="selectedFeedIds.length === 0"
+                                               x-text="feed.title">
                                             </a>
+                                            
+                                            <!-- *** CHANGE 2: Add Rename Feed Button *** -->
+                                            <button @click="renameFeed(feed.id, feed.title)"
+                                                    class="p-2 lg:opacity-0 lg:group-hover:opacity-100 focus:opacity-100 text-[var(--text-secondary)] hover:text-[var(--text-highlight)]" title="Rename Feed">
+                                                <span class="material-icons" style="font-size: 18px;">edit</span>
+                                            </button>
+                                            
+                                            <!-- Delete Button -->
                                             <button @click="softDeleteFeed(feed.id)"
                                                     class="p-2 lg:opacity-0 lg:group-hover:opacity-100 focus:opacity-100 text-[var(--text-secondary)] hover:text-red-500" title="Remove Feed">
                                                 <span class="material-icons" style="font-size: 18px;">delete</span>
@@ -171,6 +199,7 @@
                     </div>
                 </div>
 
+                <!-- Removed Feeds Section -->
                 <template x-if="appData.removedFeeds && appData.removedFeeds.length > 0">
                     <div class="pt-4" x-cloak>
                          <hr class="border-[var(--divider-color)] mx-4 my-2">
@@ -191,6 +220,7 @@
                     </div>
                 </template>
 
+                <!-- Removed Streams Section -->
                 <template x-if="appData.removedStreams && appData.removedStreams.length > 0">
                     <div class="pt-4" x-cloak>
                          <hr class="border-[var(--divider-color)] mx-4 my-2">
@@ -212,7 +242,27 @@
                 </template>
             </nav>
 
-            <div class="mt-auto space-y-2 border-t border-[var(--divider-color)] p-4">
+            <!-- Sidebar Footer Forms -->
+            <div class="mt-auto border-t border-[var(--divider-color)] p-4">
+                
+                <!-- NEW: Bulk Action Bar -->
+                <div x-show="selectedFeedIds.length > 0" x-transition
+                     class="mb-4 rounded-lg border border-[var(--divider-color)] bg-[var(--bg-darkest)] p-3" x-cloak>
+                    <p class="text-sm text-[var(--text-bright)]">
+                        <span x-text="selectedFeedIds.length"></span> feeds selected
+                    </p>
+                    <div class="mt-2 flex items-center gap-2">
+                        <button @click="openAssignModal()"
+                                class="flex-1 rounded-md bg-[var(--bg-highlight)] px-3 py-1.5 text-sm font-medium text-[var(--text-bright)] hover:bg-[var(--bg-highlight-hover)]">
+                            Assign...
+                        </button>
+                        <button @click="clearSelection()"
+                                class="flex-shrink-0 rounded-md bg-[var(--bg-medium)] px-3 py-1.5 text-sm font-medium text-[var(--text-secondary)] hover:bg-[var(--bg-darkest)] hover:text-[var(--text-main)]">
+                            Clear
+                        </button>
+                    </div>
+                </div>
+
                  <form @submit.prevent="addCustomStream()">
                      <div class="relative">
                          <input type="text" placeholder="New custom stream..." x-model="newCustomStreamName"
@@ -223,7 +273,7 @@
                      </div>
                  </form>
                  <p x-show="customStreamError" x-text="customStreamError" class="mt-2 text-xs text-red-500" x-cloak></p>
-                 <form @submit.prevent="addCategory()">
+                 <form @submit.prevent="addCategory()" class="mt-2">
                     <div class="relative">
                         <input type="text" placeholder="New category..." x-model="newCategoryName" class="w-full rounded-md border-[var(--divider-color)] bg-[var(--bg-darkest)] pr-10 text-sm text-[var(--text-bright)] placeholder-[var(--text-secondary)] focus:border-[var(--highlight-ring)] focus:ring-[var(--highlight-ring)]">
                         <button type="submit" class="absolute inset-y-0 right-0 flex items-center pr-3 text-[var(--text-secondary)] hover:text-[var(--text-highlight)]">
@@ -235,8 +285,10 @@
              </div>
         </aside>
 
+        <!-- Main Content Area -->
         <main class="flex-1 overflow-y-auto lg:pl-72" @scroll.debounce.300ms="handleScroll($event)">
-            <header class="sticky top-0 z-10 flex h-16 shrink-0 items-center justify-between border-b border-[var(--divider-color)] bg-[var(--bg-darkest)]/80 px-4 backdrop-blur-sm sm:px-6 lg:px-8">
+            <!-- Main Header -->
+             <header class="sticky top-0 z-10 flex h-16 shrink-0 items-center justify-between border-b border-[var(--divider-color)] bg-[var(--bg-darkest)]/80 px-4 backdrop-blur-sm sm:px-6 lg:px-8">
                  <button type="button" class="-ml-2.5 p-2.5 text-[var(--text-secondary)] hover:text-[var(--text-bright)] lg:hidden" @click="isMobileMenuOpen = true">
                     <i class="material-icons" style="font-size: 24px;">menu</i>
                 </button>
@@ -265,6 +317,7 @@
                  </div>
              </header>
 
+            <!-- Article Grid -->
             <div class="grid grid-cols-1 gap-6 p-4 sm:grid-cols-2 lg:grid-cols-3" x-cloak>
                  <template x-if="filteredArticles.length === 0">
                     <p class="text-[var(--text-secondary)]" x-text="getEmptyMessage()"></p>
@@ -304,7 +357,8 @@
                      </div>
                  </template>
             </div>
-
+            
+            <!-- Loading indicator at the bottom -->
             <div class="py-8 text-center" x-show="isLoadingArticles && articles.length > 0" x-cloak>
                  <p class="text-[var(--text-secondary)]">Loading more articles...</p>
             </div>
@@ -312,11 +366,13 @@
         </main>
     </div>
 
+    <!-- Article Modal -->
     <div x-show="isModalOpen" @keydown.escape.window="isModalOpen = false" class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/80 p-4 pt-12 sm:p-8" x-cloak>
         <div class="fixed inset-0" @click="isModalOpen = false" x-transition:enter="ease-out duration-300" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100" x-transition:leave="ease-in duration-200" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"></div>
         <div class="relative z-10 w-full max-w-3xl overflow-hidden rounded-lg bg-[var(--bg-medium)] shadow-xl" x-show="isModalOpen" x-transition:enter="ease-out duration-300" x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95" x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100" x-transition:leave="ease-in duration-200" x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100" x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95">
             <template x-if="modalArticle">
                 <div>
+                    <!-- Modal Header -->
                     <div class="border-b border-[var(--divider-color)] p-4 sm:p-5">
                         <h2 class="text-lg font-semibold text-[var(--text-bright)]" x-text="modalArticle.title"></h2>
                         <div class="mt-2 flex flex-col gap-3 sm:mt-1 sm:flex-row sm:items-center sm:justify-between sm:gap-0">
@@ -328,7 +384,7 @@
                             <div class="flex items-center gap-2">
                                 <button class="p-1.5" @click.prevent="toggleFavorite(modalArticle)" :class="modalArticle.is_favorite ? 'fav-selected' : 'text-[var(--text-secondary)] hover:text-[var(--text-highlight)]'"><i class="material-icons" style="font-size: 20px;" x-text="modalArticle.is_favorite ? 'star' : 'star_border'"></i></button>
                                 <button class="p-1.5" @click.prevent="toggleBookmark(modalArticle)" :class="modalArticle.is_read_later ? 'text-[var(--text-highlight)]' : 'text-[var(--text-secondary)] hover:text-[var(--text-highlight)]'"><i class="material-icons" style="font-size: 20px;" x-text="modalArticle.is_read_later ? 'bookmark' : 'bookmark_border'"></i></button>
-                                <button class="p-1.5 text-[var(--text-secondary)] hover:text-[var(--text-highlight)]" @click="shareArticle(modalArticle)"><span class="material-icons" style="font-size: 20px;" x-text="copiedArticleId === modalArticle.id ? 'check' : 'share'"></span></button>
+                                <button class="p-1.5 text-[var(--text-secondary)] hover:text-[var(--text-highlight)]" @click="shareArticle(article)"><span class="material-icons" style="font-size: 20px;" x-text="copiedArticleId === article.id ? 'check' : 'share'"></span></button>
                                 <a :href="modalArticle.link" target="_blank" class="p-1.5 text-[var(--text-secondary)] hover:text-[var(--text-highlight)]"><i class="material-icons" style="font-size: 20px;">open_in_new</i></a>
                                 <button class="ml-2 h-8 w-8 flex-shrink-0 rounded-full bg-[var(--bg-darkest)] flex items-center justify-center text-[var(--text-secondary)] hover:bg-[var(--bg-highlight)] hover:text-[var(--text-bright)]" @click="isModalOpen = false">
                                     <i class="material-icons" style="font-size: 20px;">close</i>
@@ -336,6 +392,7 @@
                             </div>
                         </div>
                     </div>
+                    <!-- Modal Content -->
                     <div class="max-h-[75vh] overflow-y-auto p-4 sm:p-5">
                          <template x-if="modalArticle.image_url">
                             <img class="w-full rounded-lg mb-4" :src="modalArticle.image_url" alt="" @error="$event.target.style.display='none'">
@@ -345,6 +402,68 @@
                     </div>
                 </div>
             </template>
+        </div>
+    </div>
+    
+    <!-- NEW: Assign Feeds Modal -->
+    <div x-show="isAssignModalOpen" @keydown.escape.window="isAssignModalOpen = false" class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/80 p-4 pt-12 sm:p-8" x-cloak>
+        <!-- Modal Overlay -->
+        <div class="fixed inset-0" @click="isAssignModalOpen = false" x-transition:enter="ease-out duration-300" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100" x-transition:leave="ease-in duration-200" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"></div>
+        
+        <!-- Modal Panel -->
+        <div class="relative z-10 w-full max-w-md overflow-hidden rounded-lg bg-[var(--bg-medium)] shadow-xl" x-show="isAssignModalOpen" x-transition:enter="ease-out duration-300" x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95" x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100" x-transition:leave="ease-in duration-200" x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100" x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95">
+            
+            <!-- Modal Header -->
+            <div class="border-b border-[var(--divider-color)] p-4 sm:p-5">
+                <h2 class="text-lg font-semibold text-[var(--text-bright)]">Assign Feeds</h2>
+                <p class="mt-1 text-sm text-[var(--text-secondary)]">
+                    Assign <span x-text="selectedFeedIds.length"></span> selected feeds
+                </p>
+            </div>
+
+            <!-- Modal Content -->
+            <div class="max-h-[70vh] overflow-y-auto p-4 sm:p-5 space-y-4">
+                <!-- Move to Category -->
+                <div>
+                    <label for="category-select" class="block text-sm font-medium text-[var(--text-bright)]">Move to Category</label>
+                    <select id="category-select" x-model="assignModalCategoryId"
+                            class="mt-1 block w-full rounded-md border-[var(--divider-color)] bg-[var(--bg-darkest)] text-[var(--text-main)] focus:border-[var(--highlight-ring)] focus:ring-[var(--highlight-ring)]">
+                        <option value="none">-- Don't Change --</option>
+                        <template x-for="category in appData.categories.sort((a, b) => a.name === 'Uncategorized' ? -1 : b.name === 'Uncategorized' ? 1 : a.name.localeCompare(b.name))" :key="category.id">
+                            <option :value="category.id" x-text="category.name"></option>
+                        </template>
+                    </select>
+                </div>
+
+                <!-- Add to Streams -->
+                <div>
+                    <label class="block text-sm font-medium text-[var(--text-bright)]">Add to Streams</label>
+                    <div class="mt-2 max-h-48 overflow-y-auto rounded-md border border-[var(--divider-color)] bg-[var(--bg-darkest)] p-2 space-y-2">
+                        <template x-if="appData.customStreams.length === 0">
+                            <p class="text-sm text-[var(--text-secondary)] italic">No custom streams created.</p>
+                        </template>
+                        <template x-for="stream in appData.customStreams" :key="stream.id">
+                            <label class="flex items-center space-x-2 p-1 rounded hover:bg-[var(--bg-medium)]">
+                                <input type="checkbox" :value="stream.id" x-model="assignModalStreamIds"
+                                       class="h-4 w-4 rounded border-[var(--divider-color)] bg-[var(--bg-darkest)] text-[var(--text-highlight)] focus:ring-[var(--highlight-ring)]">
+                                <span class="text-[var(--text-main)]" x-text="stream.name"></span>
+                            </label>
+                        </template>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Modal Footer -->
+            <div class="flex items-center justify-end gap-3 border-t border-[var(--divider-color)] p-4">
+                <button @click="isAssignModalOpen = false"
+                        class="rounded-md bg-[var(--bg-medium)] px-4 py-2 text-sm font-medium text-[var(--text-secondary)] hover:bg-[var(--bg-darkest)] hover:text-[var(--text-main)]">
+                    Cancel
+                </button>
+                <button @click="assignFeeds()"
+                        class="rounded-md bg-[var(--bg-highlight)] px-4 py-2 text-sm font-medium text-[var(--text-bright)] hover:bg-[var(--bg-highlight-hover)]">
+                    Save Changes
+                </button>
+            </div>
         </div>
     </div>
 

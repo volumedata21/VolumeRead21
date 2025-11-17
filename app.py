@@ -261,7 +261,8 @@ def get_data():
 def get_articles():
     """Gets a paginated list of articles based on view type."""
     page = request.args.get('page', 1, type=int)
-    per_page = request.args.get('per_page', 20, type=int) # Load 20 articles at a time
+    # *** CHANGE 1: Set default to 24 ***
+    per_page = request.args.get('per_page', 24, type=int) # Load 24 articles at a time
     
     # Get view type and ID from query params
     view_type = request.args.get('view_type', 'all')
@@ -592,6 +593,77 @@ def move_feed():
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
+
+# *** CHANGE 2: Add Rename Feed Endpoint ***
+@app.route('/api/feed/<int:feed_id>', methods=['PUT'])
+def rename_feed(feed_id):
+    """Renames a feed."""
+    data = request.get_json()
+    new_name = data.get('name')
+
+    if not new_name or not new_name.strip():
+        return jsonify({'error': 'New name is required'}), 400
+        
+    feed = Feed.query.get_or_404(feed_id)
+        
+    existing = Feed.query.filter_by(title=new_name.strip()).first()
+    if existing and existing.id != feed_id:
+        return jsonify({'error': 'Feed with this name already exists'}), 400
+        
+    try:
+        feed.title = new_name.strip()
+        db.session.commit()
+        return jsonify({'success': True, 'name': new_name}), 200
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error renaming feed: {e}")
+        return jsonify({'error': str(e)}), 500
+
+## --- NEW: Bulk Feed Assignment Endpoint ---
+@app.route('/api/assign_feeds_bulk', methods=['POST'])
+def assign_feeds_bulk():
+    """Moves a list of feeds to a new category and adds them to a list of streams."""
+    data = request.get_json()
+    feed_ids = data.get('feed_ids', [])
+    category_id = data.get('category_id') # Can be None
+    stream_ids = data.get('stream_ids', [])
+
+    if not feed_ids:
+        return jsonify({'error': 'No feed IDs provided'}), 400
+    
+    try:
+        # Get all feeds
+        feeds = Feed.query.filter(Feed.id.in_(feed_ids)).all()
+        if not feeds:
+            return jsonify({'error': 'No valid feeds found'}), 404
+        
+        # 1. Move to new category (if provided)
+        if category_id:
+            category = Category.query.get(category_id)
+            if not category:
+                return jsonify({'error': 'Invalid category ID'}), 404
+            
+            for feed in feeds:
+                feed.category_id = category_id
+        
+        # 2. Add to streams (if provided)
+        if stream_ids:
+            streams = CustomStream.query.filter(CustomStream.id.in_(stream_ids)).all()
+            
+            for feed in feeds:
+                for stream in streams:
+                    # Add only if not already in the stream
+                    if feed not in stream.feeds:
+                        stream.feeds.append(feed)
+
+        db.session.commit()
+        return jsonify({'success': True}), 200
+
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error in bulk feed assignment: {e}")
+        return jsonify({'error': str(e)}), 500
+
 
 ## --- API: Category Management ---
 

@@ -46,6 +46,12 @@ document.addEventListener('alpine:init', () => {
         dragOverCategoryId: null,
         dragOverStreamId: null,
 
+        // --- NEW: Bulk Assign State ---
+        selectedFeedIds: [], // Array of feed IDs
+        isAssignModalOpen: false,
+        assignModalCategoryId: 'none', // 'none' or a category ID
+        assignModalStreamIds: [], // Array of stream IDs
+
         // --- Init Function ---
         async init() {
             this.isRefreshing = true;
@@ -197,14 +203,9 @@ document.addEventListener('alpine:init', () => {
             this.fetchArticles(false); // Fetch next page
         },
         
-        // --- THIS IS THE NEW FUNCTION ---
-        // This is triggered by the @scroll event in index.html
         handleScroll(event) {
             const el = event.target;
             // Check if scrolled to near the bottom (within 300px)
-            // This calls loadMoreArticles, which in turn calls
-            // fetchArticles, which already has guards against
-            // (isLoadingArticles || !hasNextPage)
             if (el.scrollHeight - el.scrollTop - el.clientHeight < 300) {
                 this.loadMoreArticles();
             }
@@ -239,6 +240,11 @@ document.addEventListener('alpine:init', () => {
         
         // --- Drag & Drop ---
         dragStartFeed(feedId, event) {
+            // Prevent drag if a feed is selected
+            if (this.selectedFeedIds.length > 0) {
+                event.preventDefault();
+                return;
+            }
             this.draggingFeedId = feedId;
             event.dataTransfer.effectAllowed = 'move';
         },
@@ -259,10 +265,45 @@ document.addEventListener('alpine:init', () => {
         },
         // Basic touch-to-drag simulation
         handleTouchStart(feedId, event) {
+            if (this.selectedFeedIds.length > 0) {
+                event.preventDefault();
+                return;
+            }
             this.draggingFeedId = feedId;
-            // You could open a small modal here asking "Move to..."
             // For now, just logging it.
             console.log('Dragging feed: ', feedId);
+        },
+
+        // --- NEW: Bulk Feed Assignment ---
+        clearSelection() {
+            this.selectedFeedIds = [];
+        },
+        openAssignModal() {
+            // Reset modal state
+            this.assignModalCategoryId = 'none';
+            this.assignModalStreamIds = [];
+            this.isAssignModalOpen = true;
+        },
+        async assignFeeds() {
+            if (this.selectedFeedIds.length === 0) return;
+            
+            const payload = {
+                feed_ids: this.selectedFeedIds,
+                category_id: this.assignModalCategoryId === 'none' ? null : parseInt(this.assignModalCategoryId),
+                stream_ids: this.assignModalStreamIds.map(id => parseInt(id))
+            };
+            
+            const data = await this.apiPost('/api/assign_feeds_bulk', payload);
+            
+            if (data.error) {
+                console.error("Error assigning feeds:", data.error);
+                alert("Error assigning feeds: " + data.error); // Simple error feedback
+            } else {
+                // Success
+                this.isAssignModalOpen = false;
+                this.clearSelection();
+                // apiPost already re-fetches appData, which is perfect
+            }
         },
 
         // --- API: Feed Management ---
@@ -289,6 +330,13 @@ document.addEventListener('alpine:init', () => {
         async confirmPermanentDeleteFeed(feedId) {
             if (!confirm('PERMANENTLY DELETE? This cannot be undone.')) return;
             await this.apiDelete(`/api/feed/${feedId}/permanent`);
+        },
+        // *** CHANGE 2: Add Rename Feed Function ***
+        async renameFeed(feedId, currentName) {
+            const newName = prompt('Enter new feed name:', currentName);
+            if (!newName || newName.trim() === '' || newName === currentName) return;
+            // Use apiPut, which will refetch data on success
+            await this.apiPut(`/api/feed/${feedId}`, { name: newName });
         },
 
         // --- API: Category Management ---
@@ -378,9 +426,20 @@ document.addEventListener('alpine:init', () => {
                     url: article.link
                 });
             } else {
-                navigator.clipboard.writeText(article.link);
-                this.copiedArticleId = article.id;
-                setTimeout(() => { this.copiedArticleId = null; }, 2000);
+                // Use execCommand as a fallback for clipboard
+                try {
+                    const ta = document.createElement('textarea');
+                    ta.value = article.link;
+                    document.body.appendChild(ta);
+                    ta.select();
+                    document.execCommand('copy');
+                    document.body.removeChild(ta);
+
+                    this.copiedArticleId = article.id;
+                    setTimeout(() => { this.copiedArticleId = null; }, 2000);
+                } catch (e) {
+                    console.error('Failed to copy to clipboard', e);
+                }
             }
         },
         
@@ -402,10 +461,14 @@ document.addEventListener('alpine:init', () => {
                     const errorData = await response.json().catch(() => ({error: `Error: ${response.status}`}));
                     return { error: errorData.error || `Error: ${response.status}` };
                 }
-                // DELETE requests might not return JSON, check status
-                if (response.status === 200 || response.status === 201) {
-                     const data = await response.json();
-                     return data;
+                // Handle 204 No Content
+                if (response.status === 204) {
+                    return { success: true };
+                }
+                // Handle JSON responses
+                if (response.headers.get('content-type')?.includes('application/json')) {
+                    const data = await response.json();
+                    return data;
                 }
                 return { success: true }; // For non-json success (like DELETE)
             } catch (error) {
@@ -416,21 +479,21 @@ document.addEventListener('alpine:init', () => {
         async apiPost(url, body = null) {
             const data = await this.apiRequest('POST', url, body);
             // On any successful POST, reload app data (categories, feeds, etc)
-            if (!data.error) {
+            if (data && !data.error) {
                 await this.fetchAppData();
             }
             return data;
         },
         async apiPut(url, body) {
             const data = await this.apiRequest('PUT', url, body);
-            if (!data.error) {
+            if (data && !data.error) {
                 await this.fetchAppData();
             }
             return data;
         },
         async apiDelete(url) {
             const data = await this.apiRequest('DELETE', url);
-            if (!data.error) {
+            if (data && !data.error) {
                 await this.fetchAppData();
             }
             return data;

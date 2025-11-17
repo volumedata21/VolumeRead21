@@ -417,13 +417,13 @@
                     <!-- MODAL SCROLL FIX (x-ref added) -->
                     <div class="max-h-[75vh] overflow-y-auto p-4 sm:p-5" x-ref="modalContent">
                          
-                         <!-- YOUTUBE EMBED -->
-                         <template x-if="getYouTubeEmbed(modalArticle.link)">
-                            <div x-html="getYouTubeEmbed(modalArticle.link)" class="mb-4"></div>
+                         <!-- *** NEW: Simplified Embed Logic *** -->
+                         <template x-if="modalEmbedHtml">
+                            <div x-html="modalEmbedHtml" class="mb-4"></div>
                          </template>
                          
-                         <!-- Image (now hides if youtube video is shown) -->
-                         <template x-if="modalArticle.image_url && !getYouTubeEmbed(modalArticle.link)">
+                         <!-- Image (only shows if no embed HTML was generated) -->
+                         <template x-if="modalArticle.image_url && !modalEmbedHtml">
                             <img class="w-full rounded-lg mb-4" :src="modalArticle.image_url" alt="" @error="$event.target.style.display='none'">
                         </template>
 

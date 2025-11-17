@@ -22,6 +22,7 @@ document.addEventListener('alpine:init', () => {
         isMobileMenuOpen: false,
         isModalOpen: false,
         modalArticle: null,
+        modalEmbedHtml: null, // NEW: Store embed HTML here
         isRefreshing: false,
         copiedArticleId: null,
         
@@ -451,6 +452,15 @@ document.addEventListener('alpine:init', () => {
             this.modalArticle = article;
             this.isModalOpen = true;
             
+            // *** UPDATED: Pre-calculate embed HTML ***
+            this.modalEmbedHtml = this.getYouTubeEmbed(article.link) || 
+                                  this.getRedgifsEmbed(article.full_content) || 
+                                  this.getImgurEmbed(article.full_content) || 
+                                  this.getStreamableEmbed(article.full_content) || 
+                                  this.getGfycatEmbed(article.full_content) ||
+                                  this.getTwitchClipEmbed(article.full_content) || // Added
+                                  this.getOtherGifEmbed(article.full_content);
+
             // SCROLL FIX
             // Wait for the modal to be in the DOM, then scroll to top
             this.$nextTick(() => {
@@ -465,13 +475,41 @@ document.addEventListener('alpine:init', () => {
             // to prevent content from disappearing during animation.
             setTimeout(() => {
                 this.modalArticle = null;
+                this.modalEmbedHtml = null; // NEW: Clear embed HTML
             }, 200);
         },
         renderModalContent(article) {
-            // This is NOT safe for production, but matches your code.
-            // A proper HTML sanitizer (like DOMPurify) is recommended.
-            if (!article.full_content) return '<p>' + article.summary + '</p>';
-            return article.full_content;
+            let content = article.full_content;
+
+            if (!content) {
+                return '<p>' + (article.summary || '') + '</p>';
+            }
+
+            // *** NEW: Detect and remove duplicate image ***
+            // Check if there's a main image URL and if we *aren't* showing a video embed.
+            // We only want to hide the duplicate image if the main image is *actually visible* at the top.
+            if (article.image_url && !this.modalEmbedHtml) {
+                try {
+                    // Create a temporary, in-memory DOM element to parse the HTML
+                    const tempDiv = document.createElement('div');
+                    tempDiv.innerHTML = content;
+                    
+                    // Find the first <img> tag whose 'src' attribute matches the 'article.image_url'
+                    const imgToRemove = tempDiv.querySelector(`img[src="${article.image_url}"]`);
+                    
+                    if (imgToRemove) {
+                        // If we found the duplicate image, remove it
+                        imgToRemove.parentNode.removeChild(imgToRemove);
+                        // Get the cleaned HTML back
+                        content = tempDiv.innerHTML;
+                    }
+                } catch (e) {
+                    console.error("Error removing duplicate image:", e);
+                    // If parsing fails, just return the original content (it's safer)
+                }
+            }
+
+            return content;
         },
 
         // YOUTUBE EMBED FUNCTION
@@ -496,7 +534,141 @@ document.addEventListener('alpine:init', () => {
             }
             return null; // Not a YouTube video
         },
+
+        // REDGIFS EMBED FUNCTION
+        getRedgifsEmbed(htmlContent) {
+            if (!htmlContent) return null;
+            // Look for a redgifs link inside the HTML content
+            // This matches watch/ and ifr/ links
+            const regex = /href="(?:https?:\/\/)?(?:www\.)?redgifs\.com\/(?:watch|ifr)\/([a-zA-Z0-9_-]+)"/;
+            const match = htmlContent.match(regex);
+
+            if (match && match[1]) {
+                const videoId = match[1];
+                // Use their iframe embed URL
+                return `
+                    <div class="aspect-w-16 aspect-h-9 rounded-lg overflow-hidden">
+                        <iframe src="https://www.redgifs.com/ifr/${videoId}"
+                                frameborder="0" 
+                                scrolling="no"
+                                allowfullscreen
+                                style="width: 100%; height: 100%; position: absolute; top: 0; left: 0;">
+                        </iframe>
+                    </div>
+                `;
+            }
+            return null; // Not a Redgifs video
+        },
+
+        // IMGUR EMBED FUNCTION
+        getImgurEmbed(htmlContent) {
+            if (!htmlContent) return null;
+            // Look for i.imgur.com links ending in .gifv or .mp4
+            const regex = /href="(https?:\/\/i\.imgur\.com\/([a-zA-Z0-9]+)\.(mp4|gifv))"/;
+            const match = htmlContent.match(regex);
+
+            if (match && match[1]) {
+                // We want the .mp4 version for the video tag
+                const videoUrl = match[1].replace('.gifv', '.mp4'); 
+                
+                return `
+                    <div class="aspect-w-16 aspect-h-9 rounded-lg overflow-hidden">
+                        <video src="${videoUrl}" 
+                               autoplay loop muted playsinline
+                               style="width: 100%; height: 100%; position: absolute; top: 0; left: 0; object-fit: contain;">
+                        </video>
+                    </div>
+                `;
+            }
+            return null; // Not an Imgur video
+        },
+
+        // OTHER GIF EMBED FUNCTION
+        getOtherGifEmbed(htmlContent) {
+            if (!htmlContent) return null;
+            // Look for any other link ending in .gif (e.g., i.redd.it)
+            const regex = /href="([^"]+\.gif)"/;
+            const match = htmlContent.match(regex);
+
+            if (match && match[1]) {
+                const gifUrl = match[1];
+                return `
+                    <img class="w-full rounded-lg mb-4" src="${gifUrl}" alt="Embedded GIF">
+                `;
+            }
+            return null; // Not a .gif link
+        },
         
+        // *** NEW: STREAMABLE EMBED FUNCTION ***
+        getStreamableEmbed(htmlContent) {
+            if (!htmlContent) return null;
+            // Look for a streamable.com link
+            const regex = /href="(?:https?:\/\/)?(?:www\.)?streamable\.com\/([a-zA-Z0-9]+)"/;
+            const match = htmlContent.match(regex);
+            
+            if (match && match[1]) {
+                return `
+                    <div class="aspect-w-16 aspect-h-9 rounded-lg overflow-hidden">
+                        <iframe src="https://streamable.com/e/${match[1]}"
+                                frameborder="0" 
+                                scrolling="no"
+                                allowfullscreen
+                                style="width: 100%; height: 100%; position: absolute; top: 0; left: 0;">
+                        </iframe>
+                    </div>
+                `;
+            }
+            return null; // Not a Streamable link
+        },
+
+        // *** NEW: GFYCAT EMBED FUNCTION ***
+        getGfycatEmbed(htmlContent) {
+            if (!htmlContent) return null;
+            // Look for a gfycat.com link
+            const regex = /href="(?:https?:\/\/)?gfycat\.com\/([a-zA-Z0-9]+)"/;
+            const match = htmlContent.match(regex);
+            
+            if (match && match[1]) {
+                return `
+                    <div class="aspect-w-16 aspect-h-9 rounded-lg overflow-hidden">
+                        <iframe src="https://gfycat.com/ifr/${match[1]}"
+                                frameborder="0" 
+                                scrolling="no" 
+                                allowfullscreen
+                                style="width: 100%; height: 100%; position: absolute; top: 0; left: 0;">
+                        </iframe>
+                    </div>
+                `;
+            }
+            return null; // Not a Gfycat link
+        },
+
+        // *** NEW: TWITCH CLIP EMBED FUNCTION ***
+        getTwitchClipEmbed(htmlContent) {
+            if (!htmlContent) return null;
+            // Look for a clips.twitch.tv link
+            const regex = /href="(?:https?:\/\/)?(?:www\.)?clips\.twitch\.tv\/([a-zA-Z0-9_-]+)"/;
+            const match = htmlContent.match(regex);
+            
+            if (match && match[1]) {
+                const clipId = match[1];
+                // Twitch requires the parent domain for the embed to work
+                const parentDomain = window.location.hostname;
+                
+                return `
+                    <div class="aspect-w-16 aspect-h-9 rounded-lg overflow-hidden">
+                        <iframe src="https://clips.twitch.tv/embed?clip=${clipId}&parent=${parentDomain}"
+                                frameborder="0" 
+                                scrolling="no"
+                                allowfullscreen
+                                style="width: 100%; height: 100%; position: absolute; top: 0; left: 0;">
+                        </iframe>
+                    </div>
+                `;
+            }
+            return null; // Not a Twitch clip
+        },
+
         copyToClipboard(link, id) {
             try {
                 // Use execCommand as a fallback for clipboard

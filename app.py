@@ -7,6 +7,7 @@ import os
 import requests
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin, urlencode, quote
+from concurrent.futures import ThreadPoolExecutor
 from flask import Flask, render_template, request, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.orm import joinedload
@@ -233,14 +234,12 @@ def home():
 
 @app.route('/api/data')
 def get_data():
-    """Returns all categories, feeds, articles, and streams as a single JSON object."""
+    """Returns all categories, feeds, and streams as a single JSON object."""
     categories = Category.query.order_by(Category.name).all()
     structured_categories = [get_category_data(cat) for cat in categories]
     
     active_feeds = Feed.query.filter(Feed.deleted_at.is_(None)).all()
     removed_feeds = Feed.query.filter(Feed.deleted_at.isnot(None)).order_by(Feed.deleted_at.desc()).all()
-    active_feed_ids = [f.id for f in active_feeds]
-    articles = Article.query.filter(Article.feed_id.in_(active_feed_ids)).order_by(Article.published.desc()).all()
     
     active_streams = CustomStream.query.filter(CustomStream.deleted_at.is_(None)).order_by(CustomStream.name).all()
     removed_streams = CustomStream.query.filter(CustomStream.deleted_at.isnot(None)).order_by(CustomStream.deleted_at.desc()).all()
@@ -251,6 +250,64 @@ def get_data():
         'categories': structured_categories,
         'feeds': [{'id': f.id, 'title': f.title, 'category_id': f.category_id} for f in active_feeds],
         'removedFeeds': [{'id': f.id, 'title': f.title, 'deleted_at': f.deleted_at.isoformat()} for f in removed_feeds],
+        'customStreams': [{'id': cs.id, 'name': cs.name} for cs in active_streams],
+        'removedStreams': [{'id': cs.id, 'name': cs.name, 'deleted_at': cs.deleted_at.isoformat()} for cs in removed_streams],
+        'customStreamFeedLinks': [{'custom_stream_id': link.custom_stream_id, 'feed_id': link.feed_id} for link in stream_feed_links],
+    })
+
+## --- API: Paginated Articles Endpoint (UPDATED) ---
+
+@app.route('/api/articles')
+def get_articles():
+    """Gets a paginated list of articles based on view type."""
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 20, type=int) # Load 20 articles at a time
+    
+    # Get view type and ID from query params
+    view_type = request.args.get('view_type', 'all')
+    view_id = request.args.get('view_id', type=int)
+    author_name = request.args.get('author_name', type=str)
+
+    # Base query
+    query = Article.query.order_by(Article.published.desc())
+    
+    # Apply filters based on view_type
+    if view_type == 'feed' and view_id:
+        query = query.filter(Article.feed_id == view_id)
+        
+    elif view_type == 'category' and view_id:
+        query = query.join(Feed).filter(Feed.category_id == view_id)
+        
+    elif view_type == 'custom_stream' and view_id:
+        stream = CustomStream.query.get(view_id)
+        if stream:
+            feed_ids = [f.id for f in stream.feeds]
+            if feed_ids:
+                query = query.filter(Article.feed_id.in_(feed_ids))
+            else:
+                # No feeds in stream, return no articles
+                query = query.filter(Article.id == -1) 
+        
+    elif view_type == 'favorites':
+        query = query.filter(Article.is_favorite == True)
+        
+    elif view_type == 'readLater':
+        query = query.filter(Article.is_read_later == True)
+        
+    elif view_type == 'author' and author_name:
+        query = query.filter(Article.author == author_name)
+    
+    # 'all' (or any other case) doesn't need a special filter here,
+    # but we MUST ensure we only show articles from *active* feeds.
+    
+    active_feed_ids_query = db.session.query(Feed.id).filter(Feed.deleted_at.is_(None))
+    query = query.filter(Article.feed_id.in_(active_feed_ids_query))
+
+    # Use Flask-SQLAlchemy's paginate() method
+    pagination = query.paginate(page=page, per_page=per_page, error_out=False)
+    articles = pagination.items
+
+    return jsonify({
         'articles': [
             {
                 'id': a.id, 'title': a.title, 'link': a.link, 'summary': a.summary,
@@ -261,10 +318,11 @@ def get_data():
                 'feed_id': a.feed_id
             } for a in articles
         ],
-        'customStreams': [{'id': cs.id, 'name': cs.name} for cs in active_streams],
-        'removedStreams': [{'id': cs.id, 'name': cs.name, 'deleted_at': cs.deleted_at.isoformat()} for cs in removed_streams],
-        'customStreamFeedLinks': [{'custom_stream_id': link.custom_stream_id, 'feed_id': link.feed_id} for link in stream_feed_links],
+        'total_pages': pagination.pages,
+        'current_page': page,
+        'has_next': pagination.has_next
     })
+
 
 ## --- API: Feed Management ---
 
@@ -455,30 +513,55 @@ def restore_feed(feed_id):
         print(f"Error restoring feed: {e}")
         return jsonify({'error': str(e)}), 500
 
+## --- NEW: Helper for Parallel Refresh ---
+def _fetch_one_feed(feed):
+    """Helper function to fetch one feed in a thread."""
+    try:
+        headers = { 'User-Agent': 'VolumeRead21-Feed-Refresher/1.0' }
+        feed_data = feedparser.parse(feed.url, request_headers=headers)
+        
+        if feed_data.status >= 400 or feed_data.status == 301:
+            error_msg = f"Error fetching {feed.title}: Status {feed_data.status}"
+            return (feed, None, error_msg) # (feed_object, feed_data, error)
+            
+        return (feed, feed_data, None)
+    except Exception as e:
+        error_msg = f"Error processing {feed.title}: {e}"
+        return (feed, None, error_msg)
+
+## --- NEW: Parallel Refresh Function ---
 @app.route('/api/refresh_all_feeds', methods=['POST'])
 def refresh_all_feeds():
-    """Refreshes all active feeds, fetching new articles."""
+    """Refreshes all active feeds, fetching new articles IN PARALLEL."""
     feeds = Feed.query.filter(Feed.deleted_at.is_(None)).all()
     total_added = 0
     errors = []
 
     if not feeds:
         return jsonify({'success': True, 'message': 'No active feeds to refresh.', 'added_count': 0})
+    
+    # Use a ThreadPoolExecutor to fetch feeds in parallel
+    # We set max_workers to 10 to fetch up to 10 feeds at a time
+    with ThreadPoolExecutor(max_workers=10) as executor:
+        # 'results' will be an iterator of (feed, feed_data, error) tuples
+        results = executor.map(_fetch_one_feed, feeds)
+    
+    # Now process the results in the main thread (safer for DB)
+    for feed, feed_data, error in results:
+        if error:
+            errors.append(error)
+            print(error)
+            continue
         
-    for feed in feeds:
-        try:
-            # We pass a User-Agent to be a good citizen
-            headers = { 'User-Agent': 'VolumeRead21-Feed-Refresher/1.0' }
-            feed_data = feedparser.parse(feed.url, request_headers=headers)
-            
-            if feed_data.status >= 400 or feed_data.status == 301:
-                errors.append(f"Error fetching {feed.title}: Status {feed_data.status}")
-                continue
-            count = _update_articles_for_feed(feed, feed_data)
-            total_added += count
-        except Exception as e:
-            errors.append(f"Error processing {feed.title}: {e}")
-            print(f"Error refreshing feed {feed.url}: {e}")
+        if feed_data:
+            try:
+                # This DB part is still done in the main thread
+                count = _update_articles_for_feed(feed, feed_data)
+                total_added += count
+            except Exception as e:
+                db_error = f"Error updating DB for {feed.title}: {e}"
+                errors.append(db_error)
+                print(f"Error updating DB for {feed.url}: {e}")
             
     if errors:
         return jsonify({
@@ -711,15 +794,16 @@ def toggle_bookmark(article_id):
 
 ## --- Main Execution ---
 
-if __name__ == '__main__':
-    # Ensure the data directory exists
-    if 'DATA_DIR' in os.environ and not os.path.exists(data_dir):
-        print(f"Creating data directory: {data_dir}")
-        os.makedirs(data_dir)
-        
-    initialize_database()
+# Ensure the data directory exists
+if 'DATA_DIR' in os.environ and not os.path.exists(data_dir):
+    print(f"Creating data directory: {data_dir}")
+    os.makedirs(data_dir)
     
-    # Use FLASK_DEBUG env var to control debug mode
+# Initialize the database (this will now run when Gunicorn starts)
+initialize_database()
+
+if __name__ == '__main__':
+    # This block is now ONLY for local development (e.g., python app.py)
+    # Gunicorn will NOT run this block.
     debug_mode = os.environ.get('FLASK_DEBUG') == '1'
     app.run(debug=debug_mode, host='0.0.0.0', port=5000)
-

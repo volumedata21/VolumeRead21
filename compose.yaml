@@ -3,7 +3,7 @@ services:
     image: volumedata21/volumeread21:latest
     container_name: volumeread21
     ports:
-      - "2122:5000"
+      - "2123:5000"
     volumes:
       - rss_data:/data
     environment:

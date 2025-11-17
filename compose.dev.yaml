@@ -4,7 +4,7 @@ services:
     image: volumeread21-local-dev
     container_name: volumeread21-dev
     ports:
-      - "2122:5000"
+      - "2123:5000"
     volumes:
       - .:/app
       - ./data:/data
@@ -24,7 +24,7 @@ services:
     image: rssbridge/rss-bridge:latest
     container_name: rssbridge-dev
     ports:
-      - "2123:80"
+      - "2124:80"
     volumes:
       - ./rss-bridge-config:/config
     restart: unless-stopped

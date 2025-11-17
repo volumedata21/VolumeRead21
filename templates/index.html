@@ -6,19 +6,16 @@
     <title>VolumeRead21</title>
 
     <script src="https://cdn.tailwindcss.com?plugins=forms,line-clamp,typography"></script>
-    <script src="/static/js/app.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
-    <!-- *** END OF FIX *** -->
-
+    <script src="/static/js/app.js" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+    
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
 
-    <!-- Favicons -->
     <link rel="shortcut icon" href="/static/favicon/favicon.ico">
     <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon/favicon.png">
     <link rel="apple-touch-icon" sizes="180x180" href="/static/favicon/apple-touch-icon.png">
     <link rel="icon" type="image/png" sizes="192x192" href="/static/favicon/android-chrome-192x192.png">
 
-    <!-- Styles -->
     <link rel="stylesheet" href="/static/css/style.css">
 
 </head>
@@ -29,19 +26,15 @@
     :class="{ 'overflow-hidden': isMobileMenuOpen || isModalOpen }"
 >
 
-    <!-- Mobile Menu Overlay -->
     <div x-show="isMobileMenuOpen" @click="isMobileMenuOpen = false" x-transition:enter="transition-opacity ease-in-out duration-300" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100" x-transition:leave="transition-opacity ease-in-out duration-300" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0" class="fixed inset-0 z-30 bg-black/60 lg:hidden" x-cloak></div>
 
-    <!-- App Container -->
     <div class="flex h-screen">
 
-        <!-- Sidebar Navigation -->
         <aside
             class="fixed inset-y-0 left-0 z-40 flex w-72 transform flex-col border-r border-[var(--divider-color)] bg-[var(--bg-medium)] transition-transform duration-300 ease-in-out lg:translate-x-0"
             :class="{ '-translate-x-full': !isMobileMenuOpen, 'translate-x-0': isMobileMenuOpen }"
             @dragover.prevent @drop.prevent="dragEndAll()" x-cloak>
 
-            <!-- Sidebar Header -->
             <div class="flex h-16 shrink-0 items-center justify-between border-b border-[var(--divider-color)] px-4">
                 <a href="#" @click.prevent="setView('all'); searchQuery=''" class="flex items-center gap-3 group">
                     <i class="material-icons" style="font-size:28px;color:#DD3D2D;">rss_feed</i>
@@ -54,7 +47,6 @@
                 </div>
             </div>
 
-            <!-- Add Feed Form -->
             <div class="p-4">
                 <form @submit.prevent="addFeed()">
                     <div class="relative">
@@ -67,14 +59,12 @@
                 <p x-show="feedError" x-text="feedError" class="mt-2 text-xs text-red-500" x-cloak></p>
             </div>
 
-            <!-- Main Nav List -->
             <nav class="flex-1 space-y-1 overflow-y-auto px-4 pb-4">
                  <a href="#" @click.prevent="setView('all')" class="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium hover:bg-[var(--bg-highlight)]/50" :class="currentView.type === 'all' ? 'main-nav-selected' : 'text-[var(--text-main)]'"><i class="material-icons" style="font-size:20px;">apps</i> All Feeds</a>
                  <a href="#" @click.prevent="setView('favorites')" class="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium hover:bg-[var(--bg-highlight)]/50" :class="currentView.type === 'favorites' ? 'main-nav-selected' : 'text-[var(--text-main)]'"><i class="material-icons" style="font-size:20px;">star_outline</i> Favorites</a>
                  <a href="#" @click.prevent="setView('readLater')" class="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium hover:bg-[var(--bg-highlight)]/50" :class="currentView.type === 'readLater' ? 'main-nav-selected' : 'text-[var(--text-main)]'"><i class="material-icons" style="font-size:20px;">bookmark_border</i> Read Later</a>
                  <hr class="border-[var(--divider-color)] mx-4 my-2">
 
-                <!-- Streams Section -->
                 <div class="pt-2" x-cloak>
                     <h3 class="px-3 text-xs font-semibold uppercase text-[var(--text-secondary)]">Streams</h3>
                     <div class="mt-1 space-y-1">
@@ -122,7 +112,6 @@
 
                  <hr class="border-[var(--divider-color)] mx-4 my-2">
 
-                <!-- Feeds Section -->
                 <div class="pt-2" x-cloak>
                     <h3 class="px-3 text-xs font-semibold uppercase text-[var(--text-secondary)]">Feeds</h3>
                     <div class="mt-1 space-y-1">
@@ -182,7 +171,6 @@
                     </div>
                 </div>
 
-                <!-- Removed Feeds Section -->
                 <template x-if="appData.removedFeeds && appData.removedFeeds.length > 0">
                     <div class="pt-4" x-cloak>
                          <hr class="border-[var(--divider-color)] mx-4 my-2">
@@ -203,7 +191,6 @@
                     </div>
                 </template>
 
-                <!-- Removed Streams Section -->
                 <template x-if="appData.removedStreams && appData.removedStreams.length > 0">
                     <div class="pt-4" x-cloak>
                          <hr class="border-[var(--divider-color)] mx-4 my-2">
@@ -225,7 +212,6 @@
                 </template>
             </nav>
 
-            <!-- Sidebar Footer Forms -->
             <div class="mt-auto space-y-2 border-t border-[var(--divider-color)] p-4">
                  <form @submit.prevent="addCustomStream()">
                      <div class="relative">
@@ -249,15 +235,13 @@
              </div>
         </aside>
 
-        <!-- Main Content Area -->
-        <main class="flex-1 overflow-y-auto lg:pl-72">
-            <!-- Main Header -->
-             <header class="sticky top-0 z-10 flex h-16 shrink-0 items-center justify-between border-b border-[var(--divider-color)] bg-[var(--bg-darkest)]/80 px-4 backdrop-blur-sm sm:px-6 lg:px-8">
+        <main class="flex-1 overflow-y-auto lg:pl-72" @scroll.debounce.300ms="handleScroll($event)">
+            <header class="sticky top-0 z-10 flex h-16 shrink-0 items-center justify-between border-b border-[var(--divider-color)] bg-[var(--bg-darkest)]/80 px-4 backdrop-blur-sm sm:px-6 lg:px-8">
                  <button type="button" class="-ml-2.5 p-2.5 text-[var(--text-secondary)] hover:text-[var(--text-bright)] lg:hidden" @click="isMobileMenuOpen = true">
                     <i class="material-icons" style="font-size: 24px;">menu</i>
                 </button>
                  <div class="hidden min-w-0 flex-1 items-center gap-2 lg:flex">
-                    <button x-show="currentView.type === 'author' || currentView.type === 'feed' || currentView.type === 'custom_stream' || currentView.type === 'category'" @click="setView('all'); searchQuery=''" class="p-1 text-[var(--text-secondary)] hover:text-[var(--text-bright)] rounded-full hover:bg-[var(--bg-medium)]" title="Clear filter" x-transition:enter="transition ease-out duration-100" x-transition:enter-start="opacity-0 scale-95" x-transition:enter-end="opacity-100 scale-100" x-transition:leave="transition ease-in duration-75" x-transition:leave-start="opacity-100 scale-100" x-transition:leave-end="opacity-0 scale-95" x-cloak>
+                    <button x-show="currentView.type !== 'all'" @click="setView('all'); searchQuery=''" class="p-1 text-[var(--text-secondary)] hover:text-[var(--text-bright)] rounded-full hover:bg-[var(--bg-medium)]" title="Clear filter" x-transition:enter="transition ease-out duration-100" x-transition:enter-start="opacity-0 scale-95" x-transition:enter-end="opacity-100 scale-100" x-transition:leave="transition ease-in duration-75" x-transition:leave-start="opacity-100 scale-100" x-transition:leave-end="opacity-0 scale-95" x-cloak>
                         <span class="material-icons" style="font-size: 20px;">close</span>
                     </button>
                     <div class="min-w-0 flex-1">
@@ -281,7 +265,6 @@
                  </div>
              </header>
 
-            <!-- Article Grid (Corrected for Foldables/Tablets) -->
             <div class="grid grid-cols-1 gap-6 p-4 sm:grid-cols-2 lg:grid-cols-3" x-cloak>
                  <template x-if="filteredArticles.length === 0">
                     <p class="text-[var(--text-secondary)]" x-text="getEmptyMessage()"></p>
@@ -322,26 +305,18 @@
                  </template>
             </div>
 
-            <!-- "Load More" Button -->
-            <div class="pb-8 text-center" x-show="fullFilteredList.length > articlesToShow" x-cloak>
-                <p class="mb-2 text-xs text-[var(--text-secondary)]">
-                    Showing <span x-text="filteredArticles.length"></span> of <span x-text="fullFilteredList.length"></span> articles
-                </p>
-                <button @click="loadMoreArticles()"
-                        class="rounded-md bg-[var(--bg-highlight)] px-5 py-2.5 text-sm font-medium text-[var(--text-bright)] hover:bg-[var(--bg-highlight-hover)] focus:outline-none focus:ring-2 focus:ring-[var(--highlight-ring)] focus:ring-opacity-50">
-                    Load More (75)
-                </button>
+            <div class="py-8 text-center" x-show="isLoadingArticles && articles.length > 0" x-cloak>
+                 <p class="text-[var(--text-secondary)]">Loading more articles...</p>
             </div>
+
         </main>
     </div>
 
-    <!-- Article Modal -->
     <div x-show="isModalOpen" @keydown.escape.window="isModalOpen = false" class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/80 p-4 pt-12 sm:p-8" x-cloak>
         <div class="fixed inset-0" @click="isModalOpen = false" x-transition:enter="ease-out duration-300" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100" x-transition:leave="ease-in duration-200" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"></div>
         <div class="relative z-10 w-full max-w-3xl overflow-hidden rounded-lg bg-[var(--bg-medium)] shadow-xl" x-show="isModalOpen" x-transition:enter="ease-out duration-300" x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95" x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100" x-transition:leave="ease-in duration-200" x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100" x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95">
             <template x-if="modalArticle">
                 <div>
-                    <!-- Modal Header -->
                     <div class="border-b border-[var(--divider-color)] p-4 sm:p-5">
                         <h2 class="text-lg font-semibold text-[var(--text-bright)]" x-text="modalArticle.title"></h2>
                         <div class="mt-2 flex flex-col gap-3 sm:mt-1 sm:flex-row sm:items-center sm:justify-between sm:gap-0">
@@ -361,7 +336,6 @@
                             </div>
                         </div>
                     </div>
-                    <!-- Modal Content -->
                     <div class="max-h-[75vh] overflow-y-auto p-4 sm:p-5">
                          <template x-if="modalArticle.image_url">
                             <img class="w-full rounded-lg mb-4" :src="modalArticle.image_url" alt="" @error="$event.target.style.display='none'">
@@ -376,4 +350,3 @@
 
 </body>
 </html>
-

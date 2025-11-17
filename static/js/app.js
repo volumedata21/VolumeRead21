@@ -459,7 +459,6 @@ document.addEventListener('alpine:init', () => {
                 }
             });
         },
-        // *** NEW: Close Modal Function ***
         closeModal() {
             this.isModalOpen = false;
             // Wait for transition to finish (200ms) before clearing article
@@ -471,15 +470,15 @@ document.addEventListener('alpine:init', () => {
         renderModalContent(article) {
             // This is NOT safe for production, but matches your code.
             // A proper HTML sanitizer (like DOMPurify) is recommended.
-            if (!article.full_content) return '<p>' + article.summary + '</p>'; // <<< THIS LINE IS FIXED
+            if (!article.full_content) return '<p>' + article.summary + '</p>';
             return article.full_content;
         },
 
         // YOUTUBE EMBED FUNCTION
         getYouTubeEmbed(link) {
             if (!link) return null;
-            // Regex to find a YouTube video ID
-            const regex = /(?:https?:\/\/)?(?:www\.)?youtube\.com\/watch\?v=([a-zA-Z0-9_-]{11})/;
+            // *** UPDATED REGEX to match /watch?v= and /shorts/ ***
+            const regex = /(?:https?:\/\/)?(?:www\.)?youtube\.com\/(?:watch\?v=|shorts\/)([a-zA-Z0-9_-]{11})/;
             const match = link.match(regex);
             
             if (match && match[1]) {

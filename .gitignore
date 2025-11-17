@@ -1,0 +1,32 @@
+# --- Database Files ---
+# Ignore the local data directory
+data/
+
+# Ignore the database file if it's ever in the root
+app.db
+*.db
+*.sqlite
+*.db-shm
+*.db-wal
+
+# --- Config Files ---
+# Ignore the local rss-bridge config
+rss-bridge-config/
+
+# --- Python ---
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environment
+venv/
+.venv/
+env/
+*.env
+
+# --- OS Files ---
+# Mac
+.DS_Store
+# Windows
+Thumbs.db

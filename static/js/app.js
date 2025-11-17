@@ -28,8 +28,8 @@ document.addEventListener('alpine:init', () => {
         // --- Sidebar State ---
         openCategoryIDs: [],
         openStreamIDs: [],
-        isFeedsSectionCollapsed: false, // NEW
-        isStreamsSectionCollapsed: false, // NEW
+        isFeedsSectionCollapsed: false,
+        isStreamsSectionCollapsed: false,
 
         // --- Forms & Errors ---
         newFeedUrl: '',
@@ -450,12 +450,52 @@ document.addEventListener('alpine:init', () => {
         openModal(article) {
             this.modalArticle = article;
             this.isModalOpen = true;
+            
+            // SCROLL FIX
+            // Wait for the modal to be in the DOM, then scroll to top
+            this.$nextTick(() => {
+                if (this.$refs.modalContent) {
+                    this.$refs.modalContent.scrollTop = 0;
+                }
+            });
+        },
+        // *** NEW: Close Modal Function ***
+        closeModal() {
+            this.isModalOpen = false;
+            // Wait for transition to finish (200ms) before clearing article
+            // to prevent content from disappearing during animation.
+            setTimeout(() => {
+                this.modalArticle = null;
+            }, 200);
         },
         renderModalContent(article) {
             // This is NOT safe for production, but matches your code.
             // A proper HTML sanitizer (like DOMPurify) is recommended.
-            if (!article.full_content) return '<p>' + article.summary + '</p>';
+            if (!article.full_content) return '<p>' + article.summary + '</p>'; // <<< THIS LINE IS FIXED
             return article.full_content;
+        },
+
+        // YOUTUBE EMBED FUNCTION
+        getYouTubeEmbed(link) {
+            if (!link) return null;
+            // Regex to find a YouTube video ID
+            const regex = /(?:https?:\/\/)?(?:www\.)?youtube\.com\/watch\?v=([a-zA-Z0-9_-]{11})/;
+            const match = link.match(regex);
+            
+            if (match && match[1]) {
+                const videoId = match[1];
+                // Return responsive embed HTML (requires @tailwindcss/aspect-ratio)
+                return `
+                    <div class="aspect-w-16 aspect-h-9 rounded-lg overflow-hidden">
+                        <iframe src="https://www.youtube.com/embed/${videoId}" 
+                                frameborder="0" 
+                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+                                allowfullscreen>
+                        </iframe>
+                    </div>
+                `;
+            }
+            return null; // Not a YouTube video
         },
         
         copyToClipboard(link, id) {

@@ -28,6 +28,8 @@ document.addEventListener('alpine:init', () => {
         // --- Sidebar State ---
         openCategoryIDs: [],
         openStreamIDs: [],
+        isFeedsSectionCollapsed: false, // NEW
+        isStreamsSectionCollapsed: false, // NEW
 
         // --- Forms & Errors ---
         newFeedUrl: '',
@@ -46,11 +48,17 @@ document.addEventListener('alpine:init', () => {
         dragOverCategoryId: null,
         dragOverStreamId: null,
 
-        // --- NEW: Bulk Assign State ---
+        // --- Bulk Assign State ---
         selectedFeedIds: [], // Array of feed IDs
         isAssignModalOpen: false,
         assignModalCategoryId: 'none', // 'none' or a category ID
         assignModalStreamIds: [], // Array of stream IDs
+
+        // --- Rename Modal State ---
+        isRenameModalOpen: false,
+        renameModal: { type: null, id: null, currentName: '' },
+        renameModalNewName: '',
+        renameModalError: '',
 
         // --- Init Function ---
         async init() {
@@ -274,7 +282,7 @@ document.addEventListener('alpine:init', () => {
             console.log('Dragging feed: ', feedId);
         },
 
-        // --- NEW: Bulk Feed Assignment ---
+        // --- Bulk Feed Assignment ---
         clearSelection() {
             this.selectedFeedIds = [];
         },
@@ -306,6 +314,42 @@ document.addEventListener('alpine:init', () => {
             }
         },
 
+        // --- Rename Modal Functions ---
+        openRenameModal(type, id, currentName) {
+            this.renameModal = { type, id, currentName };
+            this.renameModalNewName = currentName;
+            this.renameModalError = '';
+            this.isRenameModalOpen = true;
+        },
+        async submitRename() {
+            this.renameModalError = '';
+            const { type, id, currentName } = this.renameModal;
+            const newName = this.renameModalNewName.trim();
+
+            if (!newName || newName === currentName) {
+                this.isRenameModalOpen = false;
+                return;
+            }
+
+            let url = '';
+            if (type === 'feed') {
+                url = `/api/feed/${id}`;
+            } else if (type === 'category') {
+                url = `/api/category/${id}`;
+            } else {
+                return; // Should not happen
+            }
+
+            const data = await this.apiPut(url, { name: newName });
+
+            if (data.error) {
+                this.renameModalError = data.error;
+            } else {
+                this.isRenameModalOpen = false;
+                // apiPut already reloads appData
+            }
+        },
+
         // --- API: Feed Management ---
         async addFeed() {
             this.feedError = '';
@@ -331,12 +375,8 @@ document.addEventListener('alpine:init', () => {
             if (!confirm('PERMANENTLY DELETE? This cannot be undone.')) return;
             await this.apiDelete(`/api/feed/${feedId}/permanent`);
         },
-        // *** CHANGE 2: Add Rename Feed Function ***
-        async renameFeed(feedId, currentName) {
-            const newName = prompt('Enter new feed name:', currentName);
-            if (!newName || newName.trim() === '' || newName === currentName) return;
-            // Use apiPut, which will refetch data on success
-            await this.apiPut(`/api/feed/${feedId}`, { name: newName });
+        renameFeed(feedId, currentName) {
+            this.openRenameModal('feed', feedId, currentName);
         },
 
         // --- API: Category Management ---
@@ -354,10 +394,8 @@ document.addEventListener('alpine:init', () => {
             if (!confirm('Delete this category? Feeds will be moved to Uncategorized.')) return;
             await this.apiDelete(`/api/category/${categoryId}`);
         },
-        async renameCategory(categoryId, currentName) {
-            const newName = prompt('Enter new category name:', currentName);
-            if (!newName || newName.trim() === '' || newName === currentName) return;
-            await this.apiPut(`/api/category/${categoryId}`, { name: newName });
+        renameCategory(categoryId, currentName) {
+            this.openRenameModal('category', categoryId, currentName);
         },
 
         // --- API: Stream Management ---
@@ -419,6 +457,24 @@ document.addEventListener('alpine:init', () => {
             if (!article.full_content) return '<p>' + article.summary + '</p>';
             return article.full_content;
         },
+        
+        copyToClipboard(link, id) {
+            try {
+                // Use execCommand as a fallback for clipboard
+                // This is more reliable inside iframes
+                const ta = document.createElement('textarea');
+                ta.value = link;
+                document.body.appendChild(ta);
+                ta.select();
+                document.execCommand('copy');
+                document.body.removeChild(ta);
+
+                this.copiedArticleId = id;
+                setTimeout(() => { this.copiedArticleId = null; }, 2000);
+            } catch (e) {
+                console.error('Failed to copy to clipboard', e);
+            }
+        },
         shareArticle(article) {
             if (navigator.share) {
                 navigator.share({
@@ -426,20 +482,8 @@ document.addEventListener('alpine:init', () => {
                     url: article.link
                 });
             } else {
-                // Use execCommand as a fallback for clipboard
-                try {
-                    const ta = document.createElement('textarea');
-                    ta.value = article.link;
-                    document.body.appendChild(ta);
-                    ta.select();
-                    document.execCommand('copy');
-                    document.body.removeChild(ta);
-
-                    this.copiedArticleId = article.id;
-                    setTimeout(() => { this.copiedArticleId = null; }, 2000);
-                } catch (e) {
-                    console.error('Failed to copy to clipboard', e);
-                }
+                // Fallback to copy for cards
+                this.copyToClipboard(article.link, article.id);
             }
         },
         

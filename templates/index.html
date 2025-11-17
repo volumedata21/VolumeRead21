@@ -26,7 +26,7 @@
     class="bg-[var(--bg-darkest)] text-[var(--text-main)]"
     x-data="rssApp"
     x-init="init()"
-    :class="{ 'overflow-hidden': isMobileMenuOpen || isModalOpen || isAssignModalOpen }"
+    :class="{ 'overflow-hidden': isMobileMenuOpen || isModalOpen || isAssignModalOpen || isRenameModalOpen }"
 >
 
     <!-- Mobile Menu Overlay -->
@@ -76,8 +76,13 @@
 
                 <!-- Streams Section -->
                 <div class="pt-2" x-cloak>
-                    <h3 class="px-3 text-xs font-semibold uppercase text-[var(--text-secondary)]">Streams</h3>
-                    <div class="mt-1 space-y-1">
+                    <!-- Collapsible Header -->
+                    <button @click="isStreamsSectionCollapsed = !isStreamsSectionCollapsed" class="flex w-full items-center justify-between rounded-md px-3 py-1 hover:bg-[var(--bg-darkest)]/50">
+                        <h3 class="text-xs font-semibold uppercase text-[var(--text-secondary)]">Streams</h3>
+                        <i class="material-icons transform transition-transform text-sm text-[var(--text-secondary)]" :class="{ 'rotate-180': isStreamsSectionCollapsed }">expand_more</i>
+                    </button>
+                    <!-- Content (now collapsible) -->
+                    <div class="mt-1 space-y-1" x-show="!isStreamsSectionCollapsed" x-transition>
                         <template x-for="stream in appData.customStreams" :key="stream.id">
                             <div>
                                 <div
@@ -124,8 +129,13 @@
 
                 <!-- Feeds Section -->
                 <div class="pt-2" x-cloak>
-                    <h3 class="px-3 text-xs font-semibold uppercase text-[var(--text-secondary)]">Feeds</h3>
-                    <div class="mt-1 space-y-1">
+                    <!-- Collapsible Header -->
+                    <button @click="isFeedsSectionCollapsed = !isFeedsSectionCollapsed" class="flex w-full items-center justify-between rounded-md px-3 py-1 hover:bg-[var(--bg-darkest)]/50">
+                        <h3 class="text-xs font-semibold uppercase text-[var(--text-secondary)]">Feeds</h3>
+                        <i class="material-icons transform transition-transform text-sm text-[var(--text-secondary)]" :class="{ 'rotate-180': isFeedsSectionCollapsed }">expand_more</i>
+                    </button>
+                    <!-- Content (now collapsible) -->
+                    <div class="mt-1 space-y-1" x-show="!isFeedsSectionCollapsed" x-transition>
                         <template x-for="category in appData.categories.sort((a, b) => a.name === 'Uncategorized' ? -1 : b.name === 'Uncategorized' ? 1 : a.name.localeCompare(b.name))" :key="category.id">
                             <div>
                                 <div class="group flex items-center rounded-md text-[var(--text-secondary)] hover:bg-[var(--bg-darkest)]/50"
@@ -143,7 +153,7 @@
                                         <span x-text="category.name"></span>
                                     </button>
                                     <div class="flex items-center ml-auto pr-2" x-show="category.name !== 'Uncategorized'">
-                                        <button @click="renameCategory(category.id, category.name)" class="p-2 lg:opacity-0 lg:group-hover:opacity-100 focus:opacity-100 text-[var(--text-secondary)] hover:text-[var(--text-highlight)]" title="Rename category">
+                                        <button @click="openRenameModal('category', category.id, category.name)" class="p-2 lg:opacity-0 lg:group-hover:opacity-100 focus:opacity-100 text-[var(--text-secondary)] hover:text-[var(--text-highlight)]" title="Rename category">
                                             <span class="material-icons" style="font-size: 16px;">edit</span>
                                         </button>
                                         <button @click="deleteCategory(category.id)" class="p-2 lg:opacity-0 lg:group-hover:opacity-100 focus:opacity-100 text-[var(--text-secondary)] hover:text-red-500" title="Delete category">
@@ -180,8 +190,8 @@
                                                x-text="feed.title">
                                             </a>
                                             
-                                            <!-- *** CHANGE 2: Add Rename Feed Button *** -->
-                                            <button @click="renameFeed(feed.id, feed.title)"
+                                            <!-- Rename Feed Button -->
+                                            <button @click="openRenameModal('feed', feed.id, feed.title)"
                                                     class="p-2 lg:opacity-0 lg:group-hover:opacity-100 focus:opacity-100 text-[var(--text-secondary)] hover:text-[var(--text-highlight)]" title="Rename Feed">
                                                 <span class="material-icons" style="font-size: 18px;">edit</span>
                                             </button>
@@ -245,7 +255,7 @@
             <!-- Sidebar Footer Forms -->
             <div class="mt-auto border-t border-[var(--divider-color)] p-4">
                 
-                <!-- NEW: Bulk Action Bar -->
+                <!-- Bulk Action Bar -->
                 <div x-show="selectedFeedIds.length > 0" x-transition
                      class="mb-4 rounded-lg border border-[var(--divider-color)] bg-[var(--bg-darkest)] p-3" x-cloak>
                     <p class="text-sm text-[var(--text-bright)]">
@@ -288,7 +298,7 @@
         <!-- Main Content Area -->
         <main class="flex-1 overflow-y-auto lg:pl-72" @scroll.debounce.300ms="handleScroll($event)">
             <!-- Main Header -->
-             <header class="sticky top-0 z-10 flex h-16 shrink-0 items-center justify-between border-b border-[var(--divider-color)] bg-[var(--bg-darkest)]/80 px-4 backdrop-blur-sm sm:px-6 lg:px-8">
+             <header class="sticky top-0 z-10 flex h-16 shrink-0 items-center justify-between border-b border-[var(--divider-color)] bg-[var(--bg-darkest)]/80 px-4 backdrop-blur-md sm:px-6 lg:px-8" x-cloak> <!-- BLUR INCREASED -->
                  <button type="button" class="-ml-2.5 p-2.5 text-[var(--text-secondary)] hover:text-[var(--text-bright)] lg:hidden" @click="isMobileMenuOpen = true">
                     <i class="material-icons" style="font-size: 24px;">menu</i>
                 </button>
@@ -372,32 +382,56 @@
         <div class="relative z-10 w-full max-w-3xl overflow-hidden rounded-lg bg-[var(--bg-medium)] shadow-xl" x-show="isModalOpen" x-transition:enter="ease-out duration-300" x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95" x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100" x-transition:leave="ease-in duration-200" x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100" x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95">
             <template x-if="modalArticle">
                 <div>
-                    <!-- Modal Header -->
-                    <div class="border-b border-[var(--divider-color)] p-4 sm:p-5">
-                        <h2 class="text-lg font-semibold text-[var(--text-bright)]" x-text="modalArticle.title"></h2>
-                        <div class="mt-2 flex flex-col gap-3 sm:mt-1 sm:flex-row sm:items-center sm:justify-between sm:gap-0">
-                            <div class="text-sm text-[var(--text-secondary)]">
+                    <!-- *** MODAL HEADER (RE-ORDERED FOR MOBILE) *** -->
+                    <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between border-b border-[var(--divider-color)] p-4 sm:p-5">
+                        
+                        <!-- Action Buttons (Order 1 on mobile) -->
+                        <div class="flex flex-shrink-0 items-center justify-end gap-2 sm:order-2 sm:justify-start">
+                            <button class="p-1.5" @click.prevent="toggleFavorite(modalArticle)" :class="modalArticle.is_favorite ? 'fav-selected' : 'text-[var(--text-secondary)] hover:text-[var(--text-highlight)]'" title="Favorite">
+                                <i class="material-icons" style="font-size: 20px;" x-text="modalArticle.is_favorite ? 'star' : 'star_border'"></i>
+                            </button>
+                            <button class="p-1.5" @click.prevent="toggleBookmark(modalArticle)" :class="modalArticle.is_read_later ? 'text-[var(--text-highlight)]' : 'text-[var(--text-secondary)] hover:text-[var(--text-highlight)]'" title="Read Later">
+                                <i class="material-icons" style="font-size: 20px;" x-text="modalArticle.is_read_later ? 'bookmark' : 'bookmark_border'"></i>
+                            </button>
+                            <a :href="modalArticle.link" target="_blank" class="p-1.5 text-[var(--text-secondary)] hover:text-[var(--text-highlight)]" title="Open in new tab">
+                                <i class="material-icons" style="font-size: 20px;">open_in_new</i>
+                            </a>
+                            <button class="ml-2 h-8 w-8 flex-shrink-0 rounded-full bg-[var(--bg-darkest)] flex items-center justify-center text-[var(--text-secondary)] hover:bg-[var(--bg-highlight)] hover:text-[var(--text-bright)]" @click="isModalOpen = false" title="Close">
+                                <i class="material-icons" style="font-size: 20px;">close</i>
+                            </button>
+                        </div>
+
+                        <!-- Title and Author (Order 2 on mobile) -->
+                        <div class="flex-1 pr-4 mt-3 sm:mt-0 sm:order-1">
+                            <a :href="modalArticle.link" target="_blank" class="hover:underline">
+                                <h2 class="text-lg font-semibold text-[var(--text-bright)]" x-text="modalArticle.title"></h2>
+                            </a>
+                            <div class="mt-1 text-sm text-[var(--text-secondary)]">
                                 <span x-text="modalArticle.feed_title"></span>
                                 <span class="mx-1.5">&middot;</span>
                                 <span x-text="modalArticle.author || 'Unknown Author'"></span>
                             </div>
-                            <div class="flex items-center gap-2">
-                                <button class="p-1.5" @click.prevent="toggleFavorite(modalArticle)" :class="modalArticle.is_favorite ? 'fav-selected' : 'text-[var(--text-secondary)] hover:text-[var(--text-highlight)]'"><i class="material-icons" style="font-size: 20px;" x-text="modalArticle.is_favorite ? 'star' : 'star_border'"></i></button>
-                                <button class="p-1.5" @click.prevent="toggleBookmark(modalArticle)" :class="modalArticle.is_read_later ? 'text-[var(--text-highlight)]' : 'text-[var(--text-secondary)] hover:text-[var(--text-highlight)]'"><i class="material-icons" style="font-size: 20px;" x-text="modalArticle.is_read_later ? 'bookmark' : 'bookmark_border'"></i></button>
-                                <button class="p-1.5 text-[var(--text-secondary)] hover:text-[var(--text-highlight)]" @click="shareArticle(article)"><span class="material-icons" style="font-size: 20px;" x-text="copiedArticleId === article.id ? 'check' : 'share'"></span></button>
-                                <a :href="modalArticle.link" target="_blank" class="p-1.5 text-[var(--text-secondary)] hover:text-[var(--text-highlight)]"><i class="material-icons" style="font-size: 20px;">open_in_new</i></a>
-                                <button class="ml-2 h-8 w-8 flex-shrink-0 rounded-full bg-[var(--bg-darkest)] flex items-center justify-center text-[var(--text-secondary)] hover:bg-[var(--bg-highlight)] hover:text-[var(--text-bright)]" @click="isModalOpen = false">
-                                    <i class="material-icons" style="font-size: 20px;">close</i>
-                                </button>
-                            </div>
                         </div>
                     </div>
+
                     <!-- Modal Content -->
                     <div class="max-h-[75vh] overflow-y-auto p-4 sm:p-5">
                          <template x-if="modalArticle.image_url">
                             <img class="w-full rounded-lg mb-4" :src="modalArticle.image_url" alt="" @error="$event.target.style.display='none'">
                         </template>
                         <div class="prose prose-sm sm:prose-base prose-invert max-w-none text-[var(--text-main)]" x-html="renderModalContent(modalArticle)"></div>
+                        
+                        <!-- URL PILL & COPY BUTTON -->
+                        <div class="mt-6">
+                            <label class="block text-xs font-medium text-[var(--text-secondary)]">Original Link</label>
+                            <div class="mt-1 flex items-center gap-2">
+                                <input type="text" readonly :value="modalArticle.link" @click="$event.target.select()" class="w-full flex-1 truncate rounded-md border-[var(--divider-color)] bg-[var(--bg-darkest)] p-2 text-sm text-[var(--text-secondary)] focus:ring-0 focus:border-[var(--divider-color)] cursor-pointer" title="Click to select link">
+                                <button @click="copyToClipboard(modalArticle.link, modalArticle.id)" class="flex-shrink-0 p-2 rounded-md bg-[var(--bg-darkest)] text-[var(--text-secondary)] hover:bg-[var(--bg-highlight)] hover:text-[var(--text-bright)]" title="Copy link">
+                                    <i class="material-icons" style="font-size: 20px;" x-text="copiedArticleId === modalArticle.id ? 'check' : 'content_copy'"></i>
+                                </button>
+                            </div>
+                        </div>
+
                         <a :href="modalArticle.link" target="_blank" class="mt-4 inline-block text-[var(--text-highlight)] hover:text-[#8bebfd]">Read full article &rarr;</a>
                     </div>
                 </div>
@@ -405,7 +439,7 @@
         </div>
     </div>
     
-    <!-- NEW: Assign Feeds Modal -->
+    <!-- Assign Feeds Modal -->
     <div x-show="isAssignModalOpen" @keydown.escape.window="isAssignModalOpen = false" class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/80 p-4 pt-12 sm:p-8" x-cloak>
         <!-- Modal Overlay -->
         <div class="fixed inset-0" @click="isAssignModalOpen = false" x-transition:enter="ease-out duration-300" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100" x-transition:leave="ease-in duration-200" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"></div>
@@ -464,6 +498,46 @@
                     Save Changes
                 </button>
             </div>
+        </div>
+    </div>
+
+    <!-- Rename Modal -->
+    <div x-show="isRenameModalOpen" @keydown.escape.window="isRenameModalOpen = false" class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/80 p-4 pt-12 sm:p-8" x-cloak>
+        <!-- Modal Overlay -->
+        <div class="fixed inset-0" @click="isRenameModalOpen = false" x-transition:enter="ease-out duration-300" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100" x-transition:leave="ease-in duration-200" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"></div>
+        
+        <!-- Modal Panel -->
+        <div class="relative z-10 w-full max-w-md overflow-hidden rounded-lg bg-[var(--bg-medium)] shadow-xl" x-show="isRenameModalOpen" x-transition:enter="ease-out duration-300" x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95" x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100" x-transition:leave="ease-in duration-200" x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100" x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95">
+            
+            <form @submit.prevent="submitRename()">
+                <!-- Modal Header -->
+                <div class="border-b border-[var(--divider-color)] p-4 sm:p-5">
+                    <h2 class="text-lg font-semibold text-[var(--text-bright)]" x-text="`Rename ${renameModal.type}`"></h2>
+                    <p class="mt-1 text-sm text-[var(--text-secondary)]" x-text="renameModal.currentName"></p>
+                </div>
+
+                <!-- Modal Content -->
+                <div class="p-4 sm:p-5 space-y-4">
+                    <div>
+                        <label for="rename-input" class="block text-sm font-medium text-[var(--text-bright)]">New Name</label>
+                        <input type="text" id="rename-input" x-model="renameModalNewName"
+                               class="mt-1 block w-full rounded-md border-[var(--divider-color)] bg-[var(--bg-darkest)] text-[var(--text-main)] focus:border-[var(--highlight-ring)] focus:ring-[var(--highlight-ring)]">
+                        <p x-show="renameModalError" x-text="renameModalError" class="mt-2 text-xs text-red-500" x-cloak></p>
+                    </div>
+                </div>
+
+                <!-- Modal Footer -->
+                <div class="flex items-center justify-end gap-3 border-t border-[var(--divider-color)] p-4">
+                    <button type="button" @click="isRenameModalOpen = false"
+                            class="rounded-md bg-[var(--bg-medium)] px-4 py-2 text-sm font-medium text-[var(--text-secondary)] hover:bg-[var(--bg-darkest)] hover:text-[var(--text-main)]">
+                        Cancel
+                    </button>
+                    <button type="submit"
+                            class="rounded-md bg-[var(--bg-highlight)] px-4 py-2 text-sm font-medium text-[var(--text-bright)] hover:bg-[var(--bg-highlight-hover)]">
+                        Save
+                    </button>
+                </div>
+            </form>
         </div>
     </div>
 

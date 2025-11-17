@@ -12,6 +12,7 @@ from flask import Flask, render_template, request, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.orm import joinedload
 from sqlalchemy.sql import func
+from flask_migrate import Migrate # <-- ADD THIS IMPORT
 
 
 ## --- App Setup ---
@@ -24,6 +25,7 @@ app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{db_path}'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
+migrate = Migrate(app, db) # <-- ADD THIS LINE
 
 ## --- Database Models ---
 
@@ -954,10 +956,12 @@ if 'DATA_DIR' in os.environ and not os.path.exists(data_dir):
     os.makedirs(data_dir)
     
 # Initialize the database (this will now run when Gunicorn starts)
-initialize_database()
-
+# We ONLY call this if not running with Gunicorn,
+# as the entrypoint.sh will handle init.
 if __name__ == '__main__':
-    # This block is now ONLY for local development (e.g., python app.py)
-    # Gunicorn will NOT run this block.
+    if 'DATA_DIR' in os.environ and not os.path.exists(data_dir):
+        print(f"Creating data directory: {data_dir}")
+        os.makedirs(data_dir)
+    initialize_database()
     debug_mode = os.environ.get('FLASK_DEBUG') == '1'
     app.run(debug=debug_mode, host='0.0.0.0', port=5000)

@@ -25,6 +25,9 @@ venv/
 env/
 *.env
 
+# ---Flask Migrations---
+migrations/
+
 # --- OS Files ---
 # Mac
 .DS_Store

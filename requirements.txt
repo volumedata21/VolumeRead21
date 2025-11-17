@@ -4,3 +4,4 @@ feedparser
 gunicorn
 requests
 beautifulsoup4
+Flask-Migrate

@@ -10,10 +10,12 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy the rest of the application code into the container
 COPY . .
+
 # Make port 5000 available to the world outside this container
 EXPOSE 5000
 
-# Run app.py when the container launches
-# CMD ["python", "app.py"] <-- This line is removed
-# This new line runs the app with 4 Gunicorn workers
-CMD ["gunicorn", "--workers", "4", "--bind", "0.0.0.0:5000", "app:app"]
+# *** NEW: Add executable permissions to the entrypoint script ***
+RUN chmod +x /app/entrypoint.sh
+
+# *** NEW: Use the entrypoint script to run migrations *before* starting the app ***
+ENTRYPOINT ["/app/entrypoint.sh"]

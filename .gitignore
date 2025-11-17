@@ -28,5 +28,6 @@ env/
 # --- OS Files ---
 # Mac
 .DS_Store
+
 # Windows
 Thumbs.db

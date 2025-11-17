@@ -340,6 +340,22 @@ def add_feed():
     # Strip leading/trailing whitespace
     url = url.strip()
 
+    # --- NEW: Reddit URL Fix ---
+    try:
+        # Use regex to find reddit URLs (http, https, www, or none)
+        # It looks for 'reddit.com/r/subreddit' and captures the subreddit part
+        reddit_match = re.match(r'(?:https?:\/\/)?(?:www\.)?reddit\.com\/r\/([a-zA-Z0-9_]+)\/?.*', url, re.IGNORECASE)
+        if reddit_match:
+            subreddit = reddit_match.group(1)
+            # Rebuild it as an RSS feed URL
+            url = f'https://www.reddit.com/r/{subreddit}/.rss'
+            print(f"Converted Reddit URL to: {url}")
+    except Exception as e:
+        print(f"Error during Reddit URL conversion (non-critical): {e}")
+        # If regex fails, just proceed with the original URL
+        pass
+    # --- END: Reddit URL Fix ---
+
     # Ensure "Uncategorized" exists
     target_category = None
     if category_id:
@@ -594,7 +610,6 @@ def move_feed():
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
 
-# *** CHANGE 2: Add Rename Feed Endpoint ***
 @app.route('/api/feed/<int:feed_id>', methods=['PUT'])
 def rename_feed(feed_id):
     """Renames a feed."""

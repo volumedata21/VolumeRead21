@@ -46,6 +46,9 @@ class Feed(db.Model):
     deleted_at = db.Column(db.DateTime(timezone=False), nullable=True)
     category_id = db.Column(db.Integer, db.ForeignKey('category.id'), nullable=False)
     
+    # *** NEW: Column for 'All Feeds' exclusion ***
+    exclude_from_all = db.Column(db.Boolean, default=False, nullable=False)
+    
     # Use back_populates to explicitly define the many-to-many relationship
     custom_streams = db.relationship('CustomStream', secondary=custom_stream_feeds, lazy='dynamic',
                                      back_populates='feeds')
@@ -183,6 +186,7 @@ def get_category_data(category):
     return {
         'id': category.id,
         'name': category.name
+        # No exclude_from_all here, it's handled at the feed level
     }
 
 def get_rss_bridge_feed(base_url, target_url):
@@ -226,8 +230,10 @@ def get_rss_bridge_feed(base_url, target_url):
         print(f"Error parsing RSS-Bridge response: {e}")
         return None
 
-## --- Initialization Function ---
+# --- REMOVED Dribbble Scraper ---
 
+
+## --- Initialization Function ---
 def initialize_database():
     """Creates all database tables and ensures the 'Uncategorized' category exists."""
     with app.app_context():
@@ -267,7 +273,8 @@ def get_data():
 
     return jsonify({
         'categories': structured_categories,
-        'feeds': [{'id': f.id, 'title': f.title, 'category_id': f.category_id} for f in active_feeds],
+        # *** UPDATED: Return exclusion status for feeds ***
+        'feeds': [{'id': f.id, 'title': f.title, 'category_id': f.category_id, 'exclude_from_all': f.exclude_from_all} for f in active_feeds],
         'removedFeeds': [{'id': f.id, 'title': f.title, 'deleted_at': f.deleted_at.isoformat()} for f in removed_feeds],
         'customStreams': [{'id': cs.id, 'name': cs.name} for cs in active_streams],
         'removedStreams': [{'id': cs.id, 'name': cs.name, 'deleted_at': cs.deleted_at.isoformat()} for cs in removed_streams],
@@ -316,6 +323,10 @@ def get_articles():
         
     elif view_type == 'author' and author_name:
         query = query.filter(Article.author == author_name)
+    
+    # *** NEW: For 'all' view, filter out excluded feeds ***
+    elif view_type == 'all':
+        query = query.join(Feed).filter(Feed.exclude_from_all == False)
     
     # 'all' (or any other case) doesn't need a special filter here,
     # but we MUST ensure we only show articles from *active* feeds.
@@ -392,6 +403,8 @@ def add_feed():
         pass
     # --- END: Pinterest URL Fix ---
 
+    # --- REMOVED Dribbble URL Fix ---
+
     # Ensure "Uncategorized" exists
     target_category = None
     if category_id:
@@ -412,7 +425,6 @@ def add_feed():
         }
 
         # --- Step 1: Parse the URL directly ---
-        # We start by adding https:// if no scheme is present
         if not feed_url.startswith(('http://', 'https://')):
             feed_url_with_scheme = 'https://' + feed_url
         else:
@@ -427,7 +439,6 @@ def add_feed():
             print(f"Direct parse failed for {feed_url_with_scheme}.")
 
             # --- STEP 1.5: Try common feed suffixes ---
-            # This is the new, upgraded logic
             common_suffixes = ['/feed', '/atom.xml', '/rss.xml', '/rss']
             base_url = feed_url_with_scheme.rstrip('/')
             
@@ -570,6 +581,8 @@ def restore_feed(feed_id):
 def _fetch_one_feed(feed):
     """Helper function to fetch one feed in a thread."""
     try:
+        # --- REMOVED Dribbble Scraper Check ---
+        
         headers = { 'User-Agent': 'VolumeRead21-Feed-Refresher/1.0' }
         feed_data = feedparser.parse(feed.url, request_headers=headers)
         
@@ -647,27 +660,30 @@ def move_feed():
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/feed/<int:feed_id>', methods=['PUT'])
-def rename_feed(feed_id):
-    """Renames a feed."""
+def update_feed_settings(feed_id):
+    """Renames a feed and/or updates its exclusion status."""
     data = request.get_json()
     new_name = data.get('name')
+    exclude_from_all = data.get('exclude_from_all')
 
-    if not new_name or not new_name.strip():
-        return jsonify({'error': 'New name is required'}), 400
-        
     feed = Feed.query.get_or_404(feed_id)
-        
-    existing = Feed.query.filter_by(title=new_name.strip()).first()
-    if existing and existing.id != feed_id:
-        return jsonify({'error': 'Feed with this name already exists'}), 400
-        
+    
     try:
-        feed.title = new_name.strip()
+        if new_name and new_name.strip():
+            # Check for name uniqueness if it's being changed
+            existing = Feed.query.filter(Feed.title == new_name.strip(), Feed.id != feed_id).first()
+            if existing:
+                return jsonify({'error': 'Feed with this name already exists'}), 400
+            feed.title = new_name.strip()
+            
+        if exclude_from_all is not None:
+            feed.exclude_from_all = bool(exclude_from_all)
+            
         db.session.commit()
-        return jsonify({'success': True, 'name': new_name}), 200
+        return jsonify({'success': True}), 200
     except Exception as e:
         db.session.rollback()
-        print(f"Error renaming feed: {e}")
+        print(f"Error updating feed: {e}")
         return jsonify({'error': str(e)}), 500
 
 ## --- NEW: Bulk Feed Assignment Endpoint ---
@@ -762,29 +778,44 @@ def delete_category(category_id):
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/category/<int:category_id>', methods=['PUT'])
-def rename_category(category_id):
-    """Renames a category."""
+def update_category_settings(category_id):
+    """Renames a category and/or updates exclusion status for its feeds."""
     data = request.get_json()
     new_name = data.get('name')
+    feed_exclusion_states = data.get('feed_exclusion_states') # e.g., {"1": true, "2": false}
 
-    if not new_name or not new_name.strip():
-        return jsonify({'error': 'New name is required'}), 400
-        
     category = Category.query.get_or_404(category_id)
-    if category.name == 'Uncategorized':
-        return jsonify({'error': "Cannot rename 'Uncategorized'"}), 400
-        
-    existing = Category.query.filter_by(name=new_name.strip()).first()
-    if existing and existing.id != category_id:
-        return jsonify({'error': 'Category with this name already exists'}), 400
-        
+    
+    if category.name == 'Uncategorized' and new_name and new_name.strip() != 'Uncategorized':
+         return jsonify({'error': "Cannot rename 'Uncategorized'"}), 400
+
     try:
-        category.name = new_name.strip()
+        if new_name and new_name.strip():
+            # Check for name uniqueness if it's being changed
+            existing = Category.query.filter(Category.name == new_name.strip(), Category.id != category_id).first()
+            if existing:
+                return jsonify({'error': 'Category with this name already exists'}), 400
+            category.name = new_name.strip()
+        
+        if feed_exclusion_states is not None:
+            # Get all feed IDs we need to update
+            feed_ids = [int(k) for k in feed_exclusion_states.keys()]
+            if feed_ids:
+                # Get the actual Feed objects that belong to this category
+                feeds_to_update = Feed.query.filter(
+                    Feed.category_id == category_id,
+                    Feed.id.in_(feed_ids)
+                ).all()
+                
+                # Update each feed
+                for feed in feeds_to_update:
+                    feed.exclude_from_all = bool(feed_exclusion_states.get(str(feed.id)))
+
         db.session.commit()
-        return jsonify({'success': True, 'name': new_name}), 200
+        return jsonify({'success': True}), 200
     except Exception as e:
         db.session.rollback()
-        print(f"Error renaming category: {e}")
+        print(f"Error updating category: {e}")
         return jsonify({'error': str(e)}), 500
 
 ## --- API: Stream Management ---

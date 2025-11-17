@@ -22,7 +22,7 @@ document.addEventListener('alpine:init', () => {
         isMobileMenuOpen: false,
         isModalOpen: false,
         modalArticle: null,
-        modalEmbedHtml: null, // NEW: Store embed HTML here
+        modalEmbedHtml: null, // Store embed HTML here
         isRefreshing: false,
         copiedArticleId: null,
         
@@ -55,11 +55,14 @@ document.addEventListener('alpine:init', () => {
         assignModalCategoryId: 'none', // 'none' or a category ID
         assignModalStreamIds: [], // Array of stream IDs
 
-        // --- Rename Modal State ---
-        isRenameModalOpen: false,
-        renameModal: { type: null, id: null, currentName: '' },
-        renameModalNewName: '',
-        renameModalError: '',
+        // --- Edit Modal State ---
+        isEditModalOpen: false,
+        editModal: { type: null, id: null, currentName: '' },
+        editModalNewName: '',
+        editModalError: '',
+        editModalExcludeAll: false, // For the category "Exclude All" toggle
+        editModalFeedStates: {}, // For feed-level exclusion checkboxes { feedId: isExcluded }
+        // editModalShowFeedList: false, // *** REMOVED - List is always shown now ***
 
         // --- Init Function ---
         async init() {
@@ -315,41 +318,81 @@ document.addEventListener('alpine:init', () => {
             }
         },
 
-        // --- Rename Modal Functions ---
-        openRenameModal(type, id, currentName) {
-            this.renameModal = { type, id, currentName };
-            this.renameModalNewName = currentName;
-            this.renameModalError = '';
-            this.isRenameModalOpen = true;
-        },
-        async submitRename() {
-            this.renameModalError = '';
-            const { type, id, currentName } = this.renameModal;
-            const newName = this.renameModalNewName.trim();
+        // --- NEW: Edit Modal Functions (Replaces Rename) ---
+        openEditModal(type, id, currentName) {
+            this.editModal = { type, id, currentName };
+            this.editModalNewName = currentName;
+            this.editModalError = '';
+            this.editModalFeedStates = {};
+            this.editModalExcludeAll = false;
+            // this.editModalShowFeedList = false; // *** REMOVED ***
 
-            if (!newName || newName === currentName) {
-                this.isRenameModalOpen = false;
-                return;
+            if (type === 'feed') {
+                const feed = this.appData.feeds.find(f => f.id === id);
+                if (feed) {
+                    this.editModalFeedStates[id] = feed.exclude_from_all;
+                }
+            } else if (type === 'category') {
+                const feeds = this.getFeedsInCategory(id);
+                let allExcluded = feeds.length > 0;
+                for (const feed of feeds) {
+                    this.editModalFeedStates[feed.id] = feed.exclude_from_all;
+                    if (!feed.exclude_from_all) {
+                        allExcluded = false;
+                    }
+                }
+                this.editModalExcludeAll = allExcluded;
+                // this.editModalShowFeedList = allExcluded; // *** REMOVED ***
             }
 
+            this.isEditModalOpen = true;
+        },
+
+        // NEW: Toggles all feeds in the category modal
+        toggleExcludeAllFeeds(isChecked) {
+            for (const feedId in this.editModalFeedStates) {
+                this.editModalFeedStates[feedId] = isChecked;
+            }
+        },
+
+        // *** NEW: Syncs the "Exclude All" checkbox to the individual feed states ***
+        updateExcludeAllState() {
+            if (this.editModal.type !== 'category') return;
+            // Check if every value in the feed states object is true
+            const allChecked = Object.values(this.editModalFeedStates).every(Boolean);
+            this.editModalExcludeAll = allChecked;
+        },
+
+        async submitEditModal() {
+            this.editModalError = '';
+            const { type, id } = this.editModal;
+            const newName = this.editModalNewName.trim();
+
             let url = '';
+            let payload = { name: newName };
+
             if (type === 'feed') {
                 url = `/api/feed/${id}`;
+                payload.exclude_from_all = this.editModalFeedStates[id];
             } else if (type === 'category') {
                 url = `/api/category/${id}`;
+                payload.feed_exclusion_states = this.editModalFeedStates;
             } else {
                 return; // Should not happen
             }
 
-            const data = await this.apiPut(url, { name: newName });
+            const data = await this.apiPut(url, payload);
 
             if (data.error) {
-                this.renameModalError = data.error;
+                this.editModalError = data.error;
             } else {
-                this.isRenameModalOpen = false;
+                this.isEditModalOpen = false;
                 // apiPut already reloads appData
+                // We must also refetch articles in case exclusions changed
+                await this.fetchArticles(true); 
             }
         },
+
 
         // --- API: Feed Management ---
         async addFeed() {
@@ -377,7 +420,9 @@ document.addEventListener('alpine:init', () => {
             await this.apiDelete(`/api/feed/${feedId}/permanent`);
         },
         renameFeed(feedId, currentName) {
-            this.openRenameModal('feed', feedId, currentName);
+            // This function is now OBSOLETE, but we keep it to prevent errors
+            // The new function is openEditModal('feed', ...)
+            this.openEditModal('feed', feedId, currentName);
         },
 
         // --- API: Category Management ---
@@ -396,7 +441,9 @@ document.addEventListener('alpine:init', () => {
             await this.apiDelete(`/api/category/${categoryId}`);
         },
         renameCategory(categoryId, currentName) {
-            this.openRenameModal('category', categoryId, currentName);
+            // This function is now OBSOLETE, but we keep it to prevent errors
+            // The new function is openEditModal('category', ...)
+            this.openEditModal('category', categoryId, currentName);
         },
 
         // --- API: Stream Management ---
@@ -643,7 +690,7 @@ document.addEventListener('alpine:init', () => {
             return null; // Not a Gfycat link
         },
 
-        // *** NEW: TWITCH CLIP EMBED FUNCTION ***
+        // TWITCH CLIP EMBED FUNCTION
         getTwitchClipEmbed(htmlContent) {
             if (!htmlContent) return null;
             // Look for a clips.twitch.tv link

@@ -211,8 +211,9 @@ def _update_articles_for_feed(feed_instance, feed_data):
         image_url_found = None
         if is_youtube_feed:
             try:
-                # Extract video ID from 'https://www.youtube.com/watch?v=VIDEO_ID'
-                video_id_match = re.search(r'watch\?v=([a-zA-Z0-9_-]+)', entry.link)
+                # Extract video ID from 'https://www.youtube.com/watch?v=VIDEO_ID' OR '/shorts/VIDEO_ID'
+                # We use (?:...) for non-capturing group on the prefix, so group(1) is always the ID
+                video_id_match = re.search(r'(?:watch\?v=|shorts\/)([a-zA-Z0-9_-]+)', entry.link)
                 if video_id_match:
                     video_id = video_id_match.group(1)
                     # Use the hqdefault.jpg, which is reliable (480x360)

@@ -109,3 +109,21 @@
 .fav-selected {
     color: #FDB366 !important;
 }
+
+/* *** NEW: Card Preview Styles *** */
+/* This ensures that if we show the full content in the card preview,
+   we don't show massive images or videos inside the text area. */
+.card-preview-content img, 
+.card-preview-content video, 
+.card-preview-content iframe,
+.card-preview-content figure {
+    display: none !important;
+}
+
+/* Ensure links in the card preview stand out but don't break layout */
+.card-preview-content a {
+    color: var(--text-highlight);
+    text-decoration: underline;
+    position: relative;
+    z-index: 20; /* Ensure clickable above card link */
+}

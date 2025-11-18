@@ -7,19 +7,20 @@
 
     <script src="https://cdn.tailwindcss.com?plugins=forms,line-clamp,typography,aspect-ratio"></script>
     
-    <script src="/static/js/app.js" defer></script>
+    <!-- Update: Use url_for for static assets -->
+    <script src="{{ url_for('static', filename='js/app.js') }}" defer></script>
     <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
     
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
 
     <!-- Favicons -->
-    <link rel="shortcut icon" href="/static/favicon/favicon.ico">
-    <link rel="icon" type="image/png" sizes="32x32" href="/static/favicon/favicon.png">
-    <link rel="apple-touch-icon" sizes="180x180" href="/static/favicon/apple-touch-icon.png">
-    <link rel="icon" type="image/png" sizes="192x192" href="/static/favicon/android-chrome-192x192.png">
+    <link rel="shortcut icon" href="{{ url_for('static', filename='favicon/favicon.ico') }}">
+    <link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('static', filename='favicon/favicon.png') }}">
+    <link rel="apple-touch-icon" sizes="180x180" href="{{ url_for('static', filename='favicon/apple-touch-icon.png') }}">
+    <link rel="icon" type="image/png" sizes="192x192" href="{{ url_for('static', filename='favicon/android-chrome-192x192.png') }}">
 
     <!-- Styles -->
-    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 
     <!-- *** NEW: Relative Time Formatter *** -->
     <script>
@@ -372,35 +373,45 @@
                     <p class="text-[var(--text-secondary)]" x-text="getEmptyMessage()"></p>
                 </template>
                  <template x-for="article in filteredArticles" :key="article.id">
-                     <div class="flex flex-col overflow-hidden rounded-lg bg-[var(--bg-medium)] shadow-lg">
-                         <!-- *** MODIFIED: Conditionally add aspect-ratio for 'videos' view *** -->
-                         <a href="#" @click.prevent="openModal(article)" :class="{ 'aspect-[16/9]': currentView.type === 'videos' }">
-                             <template x-if="article.image_url">
-                                <img :class="currentView.type === 'videos' ? 'w-full h-full object-cover' : 'h-64 w-full object-cover'" :src="article.image_url" alt="" @error="$event.target.style.display='none'; $event.target.nextElementSibling.style.display='flex'">
-                                <div :class="currentView.type === 'videos' ? 'hidden h-full w-full items-center justify-center bg-[var(--bg-darkest)] text-[var(--text-secondary)]' : 'hidden h-64 w-full items-center justify-center bg-[var(--bg-darkest)] text-[var(--text-secondary)]'">(Image failed)</div>
-                             </template>
-                             <template x-if="!article.image_url">
-                                <div :class="currentView.type === 'videos' ? 'flex h-full w-full items-center justify-center bg-[var(--bg-darkest)] text-[var(--text-secondary)]' : 'flex h-64 w-full items-center justify-center bg-[var(--bg-darkest)] text-[var(--text-secondary)]'">(No Image)</div>
-                             </template>
-                         </a>
+                     <div class="flex flex-col overflow-hidden rounded-lg bg-[var(--bg-medium)] shadow-lg group/card relative">
+                         
+                         <!-- *** MODIFIED: Only show image box if image exists OR we are in video mode *** -->
+                         <template x-if="article.image_url || currentView.type === 'videos'">
+                             <a href="#" @click.prevent="openModal(article)" :class="{ 'aspect-[16/9]': currentView.type === 'videos' }">
+                                 <template x-if="article.image_url">
+                                    <img :class="currentView.type === 'videos' ? 'w-full h-full object-cover' : 'h-64 w-full object-cover'" :src="article.image_url" alt="" @error="$event.target.style.display='none'; $event.target.nextElementSibling.style.display='flex'">
+                                    <div :class="currentView.type === 'videos' ? 'hidden h-full w-full items-center justify-center bg-[var(--bg-darkest)] text-[var(--text-secondary)]' : 'hidden h-64 w-full items-center justify-center bg-[var(--bg-darkest)] text-[var(--text-secondary)]'">(Image failed)</div>
+                                 </template>
+                                 <!-- Fallback for Videos view only -->
+                                 <template x-if="!article.image_url && currentView.type === 'videos'">
+                                    <div class="flex h-full w-full items-center justify-center bg-[var(--bg-darkest)] text-[var(--text-secondary)]">(No Image)</div>
+                                 </template>
+                             </a>
+                         </template>
                          <!-- *** END MODIFICATION *** -->
                          
                          <div class="flex flex-1 flex-col justify-between p-5">
                              <div class="flex-1">
-                                <!-- *** MODIFICATION 1: Title size changed from text-lg to text-base for videos *** -->
+                                <!-- Title -->
                                 <h3 class="font-semibold text-[var(--text-bright)]" :class="currentView.type === 'videos' ? 'text-base' : 'text-xl'">
                                     <a href="#" @click.prevent="openModal(article)" class="hover:underline" x-text="article.title"></a>
                                 </h3>
-                                <!-- *** MODIFICATION 2: Conditional summary (description) *** -->
-                                <p class="mt-3 text-sm text-[var(--text-main)] line-clamp-3" x-text="article.summary" x-show="currentView.type !== 'videos'"></p>
+                                
+                                <!-- *** MODIFIED: Rich Text Preview *** -->
+                                <!-- 
+                                    1. Uses x-html to render links and paragraphs.
+                                    2. Uses 'article.full_content' to get the formatting.
+                                    3. Adds 'card-preview-content' class to hide embedded images/videos via CSS.
+                                    4. Dynamically sets line-clamp: 3 lines if there is an image, 8 lines if there isn't.
+                                -->
+                                <div class="mt-3 text-sm text-[var(--text-main)] prose prose-sm prose-invert max-w-none card-preview-content break-words leading-relaxed"
+                                     :class="article.image_url && currentView.type !== 'videos' ? 'line-clamp-3' : 'line-clamp-[8]'"
+                                     x-show="currentView.type !== 'videos'"
+                                     x-html="article.full_content || article.summary">
+                                </div>
                             </div>
                              
-                             <!-- *** MODIFICATION 3.1: Hide capsule here in video view *** -->
-                             <div class="mt-4" x-show="currentView.type !== 'videos'">
-                                <a href="#" @click.prevent="setView('feed', article.feed_id)" class="inline-block rounded-full px-3 py-1 text-xs font-medium" :style="{ backgroundColor: 'var(--feed-pill-bg)', color: 'var(--feed-pill-text)', '&:hover': { backgroundColor: 'var(--feed-pill-hover-bg)' }}" x-text="article.feed_title"></a>
-                             </div>
-                             
-                             <!-- *** MODIFICATION 3.2: Show capsule OR author text here *** -->
+                             <!-- Capsule / Author Info -->
                              <div class="mt-4 flex items-center justify-between text-sm text-[var(--text-secondary)]">
                                  
                                  <!-- Show feed title capsule ONLY in video view -->
@@ -408,10 +419,8 @@
                                     <a href="#" @click.prevent="setView('feed', article.feed_id)" class="inline-block rounded-full px-3 py-1 text-xs font-medium" :style="{ backgroundColor: 'var(--feed-pill-bg)', color: 'var(--feed-pill-text)', '&:hover': { backgroundColor: 'var(--feed-pill-hover-bg)' }}" x-text="article.feed_title"></a>
                                  </template>
                                  
-                                 <!-- Show author text NOT in video view -->
                                  <button x-show="currentView.type !== 'videos'" @click.prevent="setView('author', null, article.author)" class="truncate hover:underline disabled:no-underline disabled:cursor-default" :disabled="!article.author || article.author === 'Unknown Author'" x-text="article.author || 'Unknown Author'"></button>
                                  
-                                 <!-- *** MODIFIED: Use new time formatter *** -->
                                  <span x-text="formatRelativeTime(article.published)"></span>
                              </div>
                          </div>

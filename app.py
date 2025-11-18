@@ -1,4 +1,3 @@
-## --- Imports ---
 import re
 import feedparser
 import html
@@ -50,6 +49,10 @@ class Feed(db.Model):
     
     # *** NEW: Column for 'All Feeds' exclusion ***
     exclude_from_all = db.Column(db.Boolean, default=False, nullable=False)
+    
+    # *** NEW: Caching columns for ETag and Last-Modified ***
+    etag = db.Column(db.String(200), nullable=True)
+    last_modified = db.Column(db.String(200), nullable=True)
     
     # Use back_populates to explicitly define the many-to-many relationship
     custom_streams = db.relationship('CustomStream', secondary=custom_stream_feeds, lazy='dynamic',
@@ -512,7 +515,13 @@ def add_feed():
 
         # --- Add the feed ---
         feed_title = clean_text(feed_data.feed.get('title', 'Untitled Feed'), strip_html_tags=True)
-        new_feed = Feed(title=feed_title, url=feed_url, category_id=target_category.id)
+        new_feed = Feed(
+            title=feed_title, 
+            url=feed_url, 
+            category_id=target_category.id,
+            etag=feed_data.get('etag'), # *** NEW: Store etag on add ***
+            last_modified=feed_data.get('modified') # *** NEW: Store modified on add ***
+        )
         db.session.add(new_feed)
         db.session.commit()
 
@@ -581,21 +590,41 @@ def restore_feed(feed_id):
 
 ## --- NEW: Helper for Parallel Refresh ---
 def _fetch_one_feed(feed):
-    """Helper function to fetch one feed in a thread."""
+    """
+    Helper function to fetch one feed in a thread.
+    Uses ETag and Last-Modified headers for conditional GETs.
+    Returns: (feed_object, feed_data, error_message, new_etag, new_modified)
+    """
     try:
-        # --- REMOVED Dribbble Scraper Check ---
-        
         headers = { 'User-Agent': 'VolumeRead21-Feed-Refresher/1.0' }
-        feed_data = feedparser.parse(feed.url, request_headers=headers)
         
+        # --- MODIFIED: Use etag and modified from the feed object ---
+        feed_data = feedparser.parse(
+            feed.url, 
+            request_headers=headers, 
+            etag=feed.etag, 
+            modified=feed.last_modified
+        )
+        
+        # --- NEW: Check for 304 Not Modified ---
+        if feed_data.status == 304:
+            print(f"Feed '{feed.title}' not modified (304).")
+            # No new data, no error, but also no new etag/modified
+            return (feed, None, None, None, None) 
+            
         if feed_data.status >= 400 or feed_data.status == 301:
             error_msg = f"Error fetching {feed.title}: Status {feed_data.status}"
-            return (feed, None, error_msg) # (feed_object, feed_data, error)
+            return (feed, None, error_msg, None, None) 
             
-        return (feed, feed_data, None)
+        # --- NEW: Get new caching headers from the response ---
+        new_etag = feed_data.get('etag')
+        new_modified = feed_data.get('modified')
+            
+        return (feed, feed_data, None, new_etag, new_modified)
+        
     except Exception as e:
         error_msg = f"Error processing {feed.title}: {e}"
-        return (feed, None, error_msg)
+        return (feed, None, error_msg, None, None)
 
 ## --- NEW: Parallel Refresh Function ---
 @app.route('/api/refresh_all_feeds', methods=['POST'])
@@ -611,30 +640,54 @@ def refresh_all_feeds():
     # Use a ThreadPoolExecutor to fetch feeds in parallel
     # We set max_workers to 10 to fetch up to 10 feeds at a time
     with ThreadPoolExecutor(max_workers=10) as executor:
-        # 'results' will be an iterator of (feed, feed_data, error) tuples
+        # 'results' will be an iterator of (feed, feed_data, error, new_etag, new_modified) tuples
         results = executor.map(_fetch_one_feed, feeds)
     
     # Now process the results in the main thread (safer for DB)
-    for feed, feed_data, error in results:
-        if error:
-            errors.append(error)
-            print(error)
-            continue
+    try:
+        for feed, feed_data, error, new_etag, new_modified in results:
+            if error:
+                errors.append(error)
+                print(error)
+                continue
+            
+            # Get the feed object attached to the current session
+            # This is safer than using the 'feed' object from the other thread
+            feed_in_session = db.session.get(Feed, feed.id)
+            if not feed_in_session:
+                print(f"Skipping feed {feed.id} (not found in session).")
+                continue
+
+            # --- NEW: Update caching headers in the DB ---
+            if new_etag:
+                feed_in_session.etag = new_etag
+            if new_modified:
+                feed_in_session.last_modified = new_modified
+            
+            # feed_data will be None if status was 304 (Not Modified)
+            if feed_data:
+                try:
+                    # _update_articles_for_feed commits after adding articles
+                    count = _update_articles_for_feed(feed_in_session, feed_data)
+                    total_added += count
+                except Exception as e:
+                    db_error = f"Error updating DB for {feed_in_session.title}: {e}"
+                    errors.append(db_error)
+                    print(db_error)
+                    db.session.rollback() # Rollback this specific feed's transaction
         
-        if feed_data:
-            try:
-                # This DB part is still done in the main thread
-                count = _update_articles_for_feed(feed, feed_data)
-                total_added += count
-            except Exception as e:
-                db_error = f"Error updating DB for {feed.title}: {e}"
-                errors.append(db_error)
-                print(f"Error updating DB for {feed.url}: {e}")
+        # Commit all ETag/Last-Modified changes (and any remaining article additions)
+        db.session.commit()
+            
+    except Exception as e:
+        db.session.rollback()
+        print(f"Major error in refresh loop: {e}")
+        return jsonify({'error': 'An internal error occurred during refresh.'}), 500
             
     if errors:
         return jsonify({
             'success': False if len(errors) == len(feeds) else True,
-            'message': f'Refreshed feeds, added {total_added} articles.',
+            'message': f'Refreshed feeds, added {total_added} new articles.',
             'errors': errors
         }), 200 if total_added > 0 else 500
         
@@ -959,9 +1012,9 @@ if 'DATA_DIR' in os.environ and not os.path.exists(data_dir):
 # We ONLY call this if not running with Gunicorn,
 # as the entrypoint.sh will handle init.
 if __name__ == '__main__':
-    if 'DATA_DIR' in os.environ and not os.path.exists(data_dir):
+    if 'DATA_DIT' in os.environ and not os.path.exists(data_dir):
         print(f"Creating data directory: {data_dir}")
         os.makedirs(data_dir)
     initialize_database()
     debug_mode = os.environ.get('FLASK_DEBUG') == '1'
-    app.run(debug=debug_mode, host='0.0.0.0', port=5000)
+    app.run(debug=debug_gid, host='0.0.0.0', port=5000)

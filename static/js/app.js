@@ -1,3 +1,16 @@
+// --- Helper for seeking YouTube embeds ---
+// Must be global to work with onclick attributes generated in HTML strings
+window.seekToTimestamp = function(seconds) {
+    const iframe = document.getElementById('yt-player');
+    if (iframe && iframe.contentWindow) {
+        iframe.contentWindow.postMessage(JSON.stringify({
+            event: 'command',
+            func: 'seekTo',
+            args: [seconds, true]
+        }), '*');
+    }
+};
+
 document.addEventListener('alpine:init', () => {
     Alpine.data('rssApp', () => ({
         // --- Core App State ---
@@ -525,34 +538,84 @@ document.addEventListener('alpine:init', () => {
                 this.modalEmbedHtml = null; // NEW: Clear embed HTML
             }, 200);
         },
+        
+        // *** MODIFIED: Added Formatting Logic for Video Descriptions ***
         renderModalContent(article) {
             let content = article.full_content;
 
+            // Use summary if full_content is empty
             if (!content) {
-                return '<p>' + (article.summary || '') + '</p>';
+                content = article.summary || '';
+            }
+
+            // --- Video Description Formatting (YouTube style) ---
+            // If we have an embed (video) and content exists, we assume it's a plain-text description
+            if (this.modalEmbedHtml && content) {
+                // Check if it looks like plain text (no block tags like <p>, <br>, <div>)
+                // This prevents us from breaking descriptions that ARE already HTML formatted
+                const hasHtmlTags = /<br|<p|<div/i.test(content);
+                
+                if (!hasHtmlTags) {
+                    // 1. Linkify URLs
+                    // Matches http/https URLs that are NOT inside quotes or angle brackets
+                    const urlRegex = /(https?:\/\/[^\s<"]+)/g;
+                    content = content.replace(urlRegex, (url) => {
+                        // Handle trailing punctuation often found in text (e.g., "Check this: http://site.com.")
+                        const trailing = url.match(/[.,;!)]+$/);
+                        let cleanUrl = url;
+                        let suffix = '';
+                        if (trailing) {
+                            suffix = trailing[0];
+                            cleanUrl = url.substring(0, url.length - suffix.length);
+                        }
+                        // Add highlighting classes
+                        return `<a href="${cleanUrl}" target="_blank" rel="noopener noreferrer" class="text-[var(--text-highlight)] hover:underline">${cleanUrl}</a>${suffix}`;
+                    });
+
+                    // 2. Linkify Timestamps (NEW)
+                    // Matches H:MM:SS or M:SS or MM:SS
+                    const timestampRegex = /\b(?:(\d{1,2}):)?(\d{1,2}):(\d{2})\b/g;
+                    content = content.replace(timestampRegex, (match, h, m, s) => {
+                        let seconds = 0;
+                        if (h) {
+                            // Format H:MM:SS
+                            seconds = parseInt(h) * 3600 + parseInt(m) * 60 + parseInt(s);
+                        } else {
+                            // Format M:SS (or MM:SS)
+                            // regex group 1 is undefined, so 'm' is actually group 2, 's' is group 3
+                            seconds = parseInt(m) * 60 + parseInt(s);
+                        }
+                        return `<button onclick="window.seekToTimestamp(${seconds})" class="text-[var(--text-highlight)] hover:underline cursor-pointer">${match}</button>`;
+                    });
+
+                    // 3. Convert newlines (Processed last to avoid breaking regexes)
+                    // Double newlines -> Paragraphs
+                    // Single newlines -> <br>
+                    if (content.includes('\n')) {
+                        const paragraphs = content.split(/\n\s*\n/);
+                        content = paragraphs
+                            .map(p => `<p class="mb-4">${p.replace(/\n/g, '<br>')}</p>`)
+                            .join('');
+                    } else {
+                        // Wrap in p tag if it's just one line
+                         content = `<p>${content}</p>`;
+                    }
+                }
             }
 
             // *** NEW: Detect and remove duplicate image ***
             // Check if there's a main image URL and if we *aren't* showing a video embed.
-            // We only want to hide the duplicate image if the main image is *actually visible* at the top.
             if (article.image_url && !this.modalEmbedHtml) {
                 try {
-                    // Create a temporary, in-memory DOM element to parse the HTML
                     const tempDiv = document.createElement('div');
                     tempDiv.innerHTML = content;
-                    
-                    // Find the first <img> tag whose 'src' attribute matches the 'article.image_url'
                     const imgToRemove = tempDiv.querySelector(`img[src="${article.image_url}"]`);
-                    
                     if (imgToRemove) {
-                        // If we found the duplicate image, remove it
                         imgToRemove.parentNode.removeChild(imgToRemove);
-                        // Get the cleaned HTML back
                         content = tempDiv.innerHTML;
                     }
                 } catch (e) {
                     console.error("Error removing duplicate image:", e);
-                    // If parsing fails, just return the original content (it's safer)
                 }
             }
 
@@ -569,9 +632,10 @@ document.addEventListener('alpine:init', () => {
             if (match && match[1]) {
                 const videoId = match[1];
                 // Return responsive embed HTML (requires @tailwindcss/aspect-ratio)
+                // *** MODIFIED: Added id="yt-player", enablejsapi=1 (for seeking), and autoplay=1 ***
                 return `
                     <div class="aspect-w-16 aspect-h-9 rounded-lg overflow-hidden">
-                        <iframe src="https://www.youtube.com/embed/${videoId}" 
+                        <iframe id="yt-player" src="https://www.youtube.com/embed/${videoId}?enablejsapi=1&autoplay=1" 
                                 frameborder="0" 
                                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
                                 allowfullscreen>

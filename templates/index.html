@@ -368,7 +368,8 @@
              </header>
 
             <!-- Article Grid -->
-            <div class="grid grid-cols-1 gap-6 p-4 sm:grid-cols-2 lg:grid-cols-3" x-cloak>
+            <!-- *** MODIFIED: Changed to max 2 columns (sm:grid-cols-2) and removed lg:grid-cols-3. Added max-w-6xl mx-auto for better spacing on large screens. *** -->
+            <div class="grid grid-cols-1 gap-6 p-4 sm:grid-cols-2 max-w-6xl mx-auto" x-cloak>
                  <template x-if="filteredArticles.length === 0">
                     <p class="text-[var(--text-secondary)]" x-text="getEmptyMessage()"></p>
                 </template>

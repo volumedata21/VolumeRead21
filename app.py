@@ -1,3 +1,4 @@
+## --- Imports ---
 import re
 import feedparser
 import html
@@ -105,18 +106,69 @@ def smart_truncate(content, length=300, suffix='...'):
 
 def find_image_url(entry):
     """Attempts to find the best-quality image URL from a feed entry."""
-    if 'media_content' in entry and entry.media_content:
-        for media in entry.media_content:
-            if media.get('medium') == 'image' and 'url' in media:
-                return media['url']
-    if 'enclosures' in entry and entry.enclosures:
-        for enclosure in entry.enclosures:
-            if 'image' in enclosure.get('type', '') and 'href' in enclosure:
-                return enclosure['href']
-    if 'media_thumbnail' in entry and entry.media_thumbnail:
-        if isinstance(entry.media_thumbnail, list) and len(entry.media_thumbnail) > 0:
-            return entry.media_thumbnail[0].get('url')
     
+    best_image_url = None
+    max_width = -1 # Start at -1 to prefer any image over no image
+
+    image_sources = []
+    
+    # Source 1: media_thumbnail (preferred, often has width)
+    if 'media_thumbnail' in entry and entry.media_thumbnail:
+        thumbnails = entry.media_thumbnail
+        if not isinstance(thumbnails, list):
+            thumbnails = [thumbnails] # Ensure it's a list
+        image_sources.extend(thumbnails)
+        
+    # Source 2: media_content (fallback)
+    if 'media_content' in entry and entry.media_content:
+        contents = entry.media_content
+        if not isinstance(contents, list):
+            contents = [contents] # Ensure it's a list
+        image_sources.extend(contents)
+
+    # Source 3: enclosures (another fallback)
+    if 'enclosures' in entry and entry.enclosures:
+        enclosures = entry.enclosures
+        if not isinstance(enclosures, list):
+            enclosures = [enclosures]
+        # Adapt enclosure format to image_source format
+        for enc in enclosures:
+            if isinstance(enc, dict) and 'image' in enc.get('type', ''):
+                image_sources.append({'url': enc.get('href'), 'width': 0}) # Width often unknown here
+
+    # Now, iterate all found sources and find the best
+    for image in image_sources:
+        if not isinstance(image, dict): continue
+        
+        url = image.get('url')
+        if not url: continue
+        
+        # Only check 'image' medium if key exists (media_content has it)
+        if 'medium' in image and image.get('medium') != 'image':
+            continue
+            
+        try:
+            # Prioritize width
+            width = int(image.get('width', 0))
+            if width > max_width:
+                max_width = width
+                best_image_url = url
+            elif width == 0 and best_image_url is None:
+                # If no width info, just grab the first one as a fallback
+                best_image_url = url
+        except (ValueError, TypeError):
+            if best_image_url is None:
+                 best_image_url = url # Fallback for non-int width
+
+    # If we found a best-by-width image, return it
+    if best_image_url and max_width > 0:
+        return best_image_url
+
+    # If we only have fallbacks (no width), return the first one we found
+    if best_image_url:
+        return best_image_url
+
+    # --- Last resort: scrape from HTML ---
     html_content = next((item['value'] for item in entry.get('content', []) if 'value' in item), None)
     if not html_content:
         html_content = entry.get('summary', '')
@@ -125,11 +177,16 @@ def find_image_url(entry):
         match = re.search(r'<img [^>]*src="([^"]+)"', html_content)
         if match:
             return match.group(1)
-    return None
+    
+    return None # No image found
 
 def _update_articles_for_feed(feed_instance, feed_data):
     """Parses feed data and adds new articles to the database for a given feed."""
     added_count = 0
+    
+    # --- NEW: Check if this is a YouTube feed ---
+    is_youtube_feed = 'youtube.com' in feed_instance.url
+
     for entry in feed_data.entries:
         if Article.query.filter_by(link=entry.link).first():
             continue
@@ -150,9 +207,28 @@ def _update_articles_for_feed(feed_instance, feed_data):
         
         smart_summary = smart_truncate(summary_text, length=300)
         
-        image_url_found = find_image_url(entry)
+        # --- MODIFIED: YouTube Thumbnail Logic ---
+        image_url_found = None
+        if is_youtube_feed:
+            try:
+                # Extract video ID from 'https://www.youtube.com/watch?v=VIDEO_ID'
+                video_id_match = re.search(r'watch\?v=([a-zA-Z0-9_-]+)', entry.link)
+                if video_id_match:
+                    video_id = video_id_match.group(1)
+                    # Use the hqdefault.jpg, which is reliable (480x360)
+                    image_url_found = f'https://img.youtube.com/vi/{video_id}/hqdefault.jpg'
+                    print(f"Constructed YouTube thumbnail: {image_url_found}")
+            except Exception as e:
+                print(f"Error extracting YouTube video ID: {e}")
+                # If regex fails, fall through to standard image finder
         
-        # --- NEW: Pinterest Hi-Res Fix ---
+        if not image_url_found:
+            # Fallback for non-YouTube feeds or failed YouTube extraction
+            image_url_found = find_image_url(entry)
+        
+        # --- REMOVED: Old YouTube Hi-Res Thumbnail Fix ---
+        
+        # --- Pinterest Hi-Res Fix (This one can stay) ---
         if image_url_found and 'i.pinimg.com' in image_url_found:
             # Try to replace thumbnail size with 'originals' for best quality
             # e.g., /236x/ -> /originals/
@@ -329,6 +405,11 @@ def get_articles():
     elif view_type == 'author' and author_name:
         query = query.filter(Article.author == author_name)
     
+    # --- NEW: Videos View ---
+    elif view_type == 'videos':
+        query = query.join(Feed).filter(Feed.url.like('%youtube.com%'))
+    # --- END: Videos View ---
+
     # *** NEW: For 'all' view, filter out excluded feeds ***
     elif view_type == 'all':
         query = query.join(Feed).filter(Feed.exclude_from_all == False)
@@ -1001,6 +1082,11 @@ def toggle_bookmark(article_id):
     db.session.commit()
     return jsonify({'is_read_later': article.is_read_later})
 
+## --- REMOVED: Temporary Fix Route ---
+# (The /api/temp_fix_youtube_thumbnails route has been removed as it's no longer needed)
+## --- END: Temporary Fix Route ---
+
+
 ## --- Main Execution ---
 
 # Ensure the data directory exists
@@ -1012,9 +1098,9 @@ if 'DATA_DIR' in os.environ and not os.path.exists(data_dir):
 # We ONLY call this if not running with Gunicorn,
 # as the entrypoint.sh will handle init.
 if __name__ == '__main__':
-    if 'DATA_DIT' in os.environ and not os.path.exists(data_dir):
+    if 'DATA_DIR' in os.environ and not os.path.exists(data_dir):
         print(f"Creating data directory: {data_dir}")
         os.makedirs(data_dir)
     initialize_database()
     debug_mode = os.environ.get('FLASK_DEBUG') == '1'
-    app.run(debug=debug_gid, host='0.0.0.0', port=5000)
+    app.run(debug=debug_mode, host='0.0.0.0', port=5000)

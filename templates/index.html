@@ -21,6 +21,41 @@
     <!-- Styles -->
     <link rel="stylesheet" href="/static/css/style.css">
 
+    <!-- *** NEW: Relative Time Formatter *** -->
+    <script>
+        function formatRelativeTime(dateString) {
+            if (!dateString) return '';
+            const date = new Date(dateString);
+            const now = new Date();
+            const seconds = Math.floor((now - date) / 1000);
+
+            let interval = seconds / 31536000; // years
+            if (interval > 1) {
+                return Math.floor(interval) + "y ago";
+            }
+            interval = seconds / 2592000; // months
+            if (interval > 1) {
+                return Math.floor(interval) + "mo ago";
+            }
+            interval = seconds / 604800; // weeks
+            if (interval > 1) {
+                return Math.floor(interval) + "w ago";
+            }
+            interval = seconds / 86400; // days
+            if (interval > 1) {
+                return Math.floor(interval) + "d ago";
+            }
+            interval = seconds / 3600; // hours
+            if (interval > 1) {
+                return Math.floor(interval) + "h ago";
+            }
+            interval = seconds / 60; // minutes
+            if (interval > 1) {
+                return Math.floor(interval) + "m ago";
+            }
+            return Math.max(0, Math.floor(seconds)) + "s ago";
+        }
+    </script>
 </head>
 <body
     class="bg-[var(--bg-darkest)] text-[var(--text-main)]"
@@ -70,6 +105,9 @@
             <!-- Main Nav List -->
             <nav class="flex-1 space-y-1 overflow-y-auto px-4 pb-4">
                  <a href="#" @click.prevent="setView('all')" class="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium hover:bg-[var(--bg-highlight)]/50" :class="currentView.type === 'all' ? 'main-nav-selected' : 'text-[var(--text-main)]'"><i class="material-icons" style="font-size:20px;">apps</i> All Feeds</a>
+                 <!-- *** NEW: Videos Link *** -->
+                 <a href="#" @click.prevent="setView('videos')" class="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium hover:bg-[var(--bg-highlight)]/50" :class="currentView.type === 'videos' ? 'main-nav-selected' : 'text-[var(--text-main)]'"><i class="material-icons" style="font-size:20px;">videocam</i> Videos</a>
+                 <!-- *** END: Videos Link *** -->
                  <a href="#" @click.prevent="setView('favorites')" class="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium hover:bg-[var(--bg-highlight)]/50" :class="currentView.type === 'favorites' ? 'main-nav-selected' : 'text-[var(--text-main)]'"><i class="material-icons" style="font-size:20px;">star_outline</i> Favorites</a>
                  <a href="#" @click.prevent="setView('readLater')" class="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium hover:bg-[var(--bg-highlight)]/50" :class="currentView.type === 'readLater' ? 'main-nav-selected' : 'text-[var(--text-main)]'"><i class="material-icons" style="font-size:20px;">bookmark_border</i> Read Later</a>
                  <hr class="border-[var(--divider-color)] mx-4 my-2">
@@ -335,28 +373,46 @@
                 </template>
                  <template x-for="article in filteredArticles" :key="article.id">
                      <div class="flex flex-col overflow-hidden rounded-lg bg-[var(--bg-medium)] shadow-lg">
-                         <a href="#" @click.prevent="openModal(article)">
+                         <!-- *** MODIFIED: Conditionally add aspect-ratio for 'videos' view *** -->
+                         <a href="#" @click.prevent="openModal(article)" :class="{ 'aspect-[16/9]': currentView.type === 'videos' }">
                              <template x-if="article.image_url">
-                                <img class="h-64 w-full object-cover" :src="article.image_url" alt="" @error="$event.target.style.display='none'; $event.target.nextElementSibling.style.display='flex'">
-                                <div class="hidden h-64 w-full items-center justify-center bg-[var(--bg-darkest)] text-[var(--text-secondary)]">(Image failed)</div>
+                                <img :class="currentView.type === 'videos' ? 'w-full h-full object-cover' : 'h-64 w-full object-cover'" :src="article.image_url" alt="" @error="$event.target.style.display='none'; $event.target.nextElementSibling.style.display='flex'">
+                                <div :class="currentView.type === 'videos' ? 'hidden h-full w-full items-center justify-center bg-[var(--bg-darkest)] text-[var(--text-secondary)]' : 'hidden h-64 w-full items-center justify-center bg-[var(--bg-darkest)] text-[var(--text-secondary)]'">(Image failed)</div>
                              </template>
                              <template x-if="!article.image_url">
-                                <div class="flex h-64 w-full items-center justify-center bg-[var(--bg-darkest)] text-[var(--text-secondary)]">(No Image)</div>
+                                <div :class="currentView.type === 'videos' ? 'flex h-full w-full items-center justify-center bg-[var(--bg-darkest)] text-[var(--text-secondary)]' : 'flex h-64 w-full items-center justify-center bg-[var(--bg-darkest)] text-[var(--text-secondary)]'">(No Image)</div>
                              </template>
                          </a>
+                         <!-- *** END MODIFICATION *** -->
+                         
                          <div class="flex flex-1 flex-col justify-between p-5">
                              <div class="flex-1">
-                                <h3 class="text-xl font-semibold text-[var(--text-bright)]">
+                                <!-- *** MODIFICATION 1: Title size changed from text-lg to text-base for videos *** -->
+                                <h3 class="font-semibold text-[var(--text-bright)]" :class="currentView.type === 'videos' ? 'text-base' : 'text-xl'">
                                     <a href="#" @click.prevent="openModal(article)" class="hover:underline" x-text="article.title"></a>
                                 </h3>
-                                <p class="mt-3 text-sm text-[var(--text-main)] line-clamp-3" x-text="article.summary"></p>
+                                <!-- *** MODIFICATION 2: Conditional summary (description) *** -->
+                                <p class="mt-3 text-sm text-[var(--text-main)] line-clamp-3" x-text="article.summary" x-show="currentView.type !== 'videos'"></p>
                             </div>
-                             <div class="mt-4">
+                             
+                             <!-- *** MODIFICATION 3.1: Hide capsule here in video view *** -->
+                             <div class="mt-4" x-show="currentView.type !== 'videos'">
                                 <a href="#" @click.prevent="setView('feed', article.feed_id)" class="inline-block rounded-full px-3 py-1 text-xs font-medium" :style="{ backgroundColor: 'var(--feed-pill-bg)', color: 'var(--feed-pill-text)', '&:hover': { backgroundColor: 'var(--feed-pill-hover-bg)' }}" x-text="article.feed_title"></a>
-                            </div>
+                             </div>
+                             
+                             <!-- *** MODIFICATION 3.2: Show capsule OR author text here *** -->
                              <div class="mt-4 flex items-center justify-between text-sm text-[var(--text-secondary)]">
-                                 <button @click.prevent="setView('author', null, article.author)" class="truncate hover:underline disabled:no-underline disabled:cursor-default" :disabled="!article.author || article.author === 'Unknown Author'" x-text="article.author || 'Unknown Author'"></button>
-                                 <span x-text="new Date(article.published).toLocaleDateString()"></span>
+                                 
+                                 <!-- Show feed title capsule ONLY in video view -->
+                                 <template x-if="currentView.type === 'videos'">
+                                    <a href="#" @click.prevent="setView('feed', article.feed_id)" class="inline-block rounded-full px-3 py-1 text-xs font-medium" :style="{ backgroundColor: 'var(--feed-pill-bg)', color: 'var(--feed-pill-text)', '&:hover': { backgroundColor: 'var(--feed-pill-hover-bg)' }}" x-text="article.feed_title"></a>
+                                 </template>
+                                 
+                                 <!-- Show author text NOT in video view -->
+                                 <button x-show="currentView.type !== 'videos'" @click.prevent="setView('author', null, article.author)" class="truncate hover:underline disabled:no-underline disabled:cursor-default" :disabled="!article.author || article.author === 'Unknown Author'" x-text="article.author || 'Unknown Author'"></button>
+                                 
+                                 <!-- *** MODIFIED: Use new time formatter *** -->
+                                 <span x-text="formatRelativeTime(article.published)"></span>
                              </div>
                          </div>
                          <div class="flex items-center justify-end gap-2 border-t border-[var(--divider-color)] p-3 px-5">

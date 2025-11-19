@@ -388,44 +388,59 @@
                     <p class="text-[var(--text-secondary)]" x-text="getEmptyMessage()"></p>
                 </template>
                  <template x-for="article in filteredArticles" :key="article.id">
-                    <!-- ... (Card HTML unchanged) ... -->
                      <div class="flex flex-col overflow-hidden rounded-lg bg-[var(--bg-medium)] shadow-lg group/card relative">
+                         
+                         <!-- *** MODIFIED: Universal Image Logic *** -->
                          <template x-if="article.image_url || layoutMode === 'videos'">
+                             <!-- Wrapper -->
                              <a href="#" @click.prevent="openModal(article)" class="block bg-[var(--bg-darkest)]" :class="{ 'aspect-[16/9]': layoutMode === 'videos' }">
+                                 
                                  <template x-if="article.image_url">
-                                    <div class="w-full h-full">
-                                        <template x-if="layoutMode !== 'threads'">
-                                            <div class="w-full h-full relative">
-                                                <img :class="layoutMode === 'videos' ? 'w-full h-full object-cover' : 'h-64 w-full object-cover'" 
+                                    <div class="w-full h-full relative overflow-hidden bg-[#0f131d]">
+                                        
+                                        <!-- Universal Blurred Background Layer -->
+                                        <div class="absolute inset-0">
+                                            <img class="w-full h-full object-cover blur-2xl opacity-40 scale-125" 
+                                                 :src="article.image_url" 
+                                                 aria-hidden="true">
+                                        </div>
+                                        
+                                        <!-- Main Image Logic -->
+                                        <!-- 1. Videos Mode: Force full cover (cropped) -->
+                                        <template x-if="layoutMode === 'videos'">
+                                            <img class="relative z-10 w-full h-full object-cover shadow-xl" 
+                                                 :src="article.image_url" 
+                                                 alt="" 
+                                                 @error="handleImageError($event)">
+                                        </template>
+
+                                        <!-- 2. All Other Modes (Standard, Threads, etc.): Uncropped with max-height -->
+                                        <template x-if="layoutMode !== 'videos'">
+                                            <div class="relative z-10 flex justify-center items-center h-full">
+                                                <img class="max-w-full w-auto shadow-xl" 
+                                                     /* Use max-h-[70vh] for threads, but limit standard cards to prevent massive vertical images */
+                                                     :class="layoutMode === 'threads' ? 'max-h-[70vh]' : 'max-h-96 object-contain'"
                                                      :src="article.image_url" 
                                                      alt="" 
                                                      @error="handleImageError($event)">
-                                                <div :class="layoutMode === 'videos' ? 'hidden h-full w-full items-center justify-center bg-[var(--bg-darkest)] text-[var(--text-secondary)]' : 'hidden h-64 w-full items-center justify-center bg-[var(--bg-darkest)] text-[var(--text-secondary)]'">(Image failed)</div>
                                             </div>
                                         </template>
-                                        <template x-if="layoutMode === 'threads'">
-                                            <div class="relative w-full overflow-hidden bg-[#0f131d]">
-                                                <div class="absolute inset-0">
-                                                    <img class="w-full h-full object-cover blur-2xl opacity-40 scale-125" 
-                                                         :src="article.image_url" 
-                                                         aria-hidden="true">
-                                                </div>
-                                                <img class="relative z-10 max-w-full max-h-[70vh] w-auto mx-auto shadow-xl" 
-                                                     :src="article.image_url" 
-                                                     alt="" 
-                                                     @error="handleImageError($event)">
-                                                <div class="hidden h-64 w-full items-center justify-center relative z-10 bg-[var(--bg-darkest)] text-[var(--text-secondary)]">
-                                                    (Image failed)
-                                                </div>
-                                            </div>
-                                        </template>
+
+                                        <!-- Error State -->
+                                        <div class="hidden h-64 w-full items-center justify-center relative z-10 bg-[var(--bg-darkest)] text-[var(--text-secondary)]">
+                                            (Image failed)
+                                        </div>
                                     </div>
                                  </template>
+                                 
+                                 <!-- Fallback for Videos view only -->
                                  <template x-if="!article.image_url && layoutMode === 'videos'">
                                     <div class="flex h-full w-full items-center justify-center bg-[var(--bg-darkest)] text-[var(--text-secondary)]">(No Image)</div>
                                  </template>
                              </a>
                          </template>
+                         <!-- *** END MODIFICATION *** -->
+                         
                          <div class="flex flex-1 flex-col justify-between p-5">
                              <div class="flex-1">
                                 <h3 class="font-semibold text-[var(--text-bright)]" :class="layoutMode === 'videos' ? 'text-base' : 'text-xl'">

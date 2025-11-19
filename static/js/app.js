@@ -88,6 +88,24 @@ document.addEventListener('alpine:init', () => {
             setInterval(() => this.refreshAllFeeds(true), 15 * 60 * 1000);
         },
 
+        // *** NEW: Smart Image Error Handler ***
+        handleImageError(event) {
+            const img = event.target;
+            const src = img.src;
+
+            // If high-res youtube thumbnail fails, try standard res
+            if (src.includes('maxresdefault.jpg')) {
+                img.src = src.replace('maxresdefault.jpg', 'hqdefault.jpg');
+            } 
+            // If daily motion or anything else fails, hide the image and show the fallback div
+            else {
+                img.style.display = 'none';
+                if (img.nextElementSibling) {
+                    img.nextElementSibling.style.display = 'flex';
+                }
+            }
+        },
+
         // --- API: Data Fetching ---
         async fetchAppData() {
             try {
@@ -333,17 +351,19 @@ document.addEventListener('alpine:init', () => {
 
         // --- NEW: Edit Modal Functions (Replaces Rename) ---
         openEditModal(type, id, currentName) {
-            this.editModal = { type, id, currentName };
+            // *** MODIFIED: Added 'url' property to editModal state ***
+            this.editModal = { type, id, currentName, url: '' };
             this.editModalNewName = currentName;
             this.editModalError = '';
             this.editModalFeedStates = {};
             this.editModalExcludeAll = false;
-            // this.editModalShowFeedList = false; // *** REMOVED ***
 
             if (type === 'feed') {
                 const feed = this.appData.feeds.find(f => f.id === id);
                 if (feed) {
                     this.editModalFeedStates[id] = feed.exclude_from_all;
+                    // *** NEW: Set the URL for display ***
+                    this.editModal.url = feed.url;
                 }
             } else if (type === 'category') {
                 const feeds = this.getFeedsInCategory(id);

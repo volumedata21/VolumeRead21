@@ -603,6 +603,26 @@
                         <label for="rename-input" class="block text-sm font-medium text-[var(--text-bright)]">Name</label>
                         <input type="text" id="rename-input" x-model="editModalNewName"
                                class="mt-1 block w-full rounded-md border-[var(--divider-color)] bg-[var(--bg-darkest)] text-[var(--text-main)] focus:border-[var(--highlight-ring)] focus:ring-[var(--highlight-ring)]">
+                        
+                        <!-- *** NEW: Feed URL Display (Updated Colors) *** -->
+                        <template x-if="editModal.type === 'feed'">
+                            <div class="mt-3">
+                                <label class="block text-xs font-medium text-[var(--text-secondary)]">RSS Feed URL</label>
+                                <div class="mt-1 flex items-center gap-2">
+                                    <!-- Changed text color to text-[var(--text-highlight)] and background to full opacity -->
+                                    <input type="text" readonly :value="editModal.url || 'Loading...'" 
+                                           @click="$event.target.select()" 
+                                           class="w-full flex-1 truncate rounded-md border-[var(--divider-color)] bg-[var(--bg-darkest)] p-2 text-xs text-[var(--text-highlight)] focus:ring-0 focus:border-[var(--divider-color)] cursor-pointer font-mono" 
+                                           title="Click to select link">
+                                    <button type="button" @click="copyToClipboard(editModal.url, 'feed-url')" 
+                                            class="flex-shrink-0 p-2 rounded-md bg-[var(--bg-darkest)] text-[var(--text-secondary)] hover:bg-[var(--bg-highlight)] hover:text-[var(--text-bright)]" 
+                                            title="Copy URL">
+                                        <i class="material-icons" style="font-size: 18px;" x-text="copiedArticleId === 'feed-url' ? 'check' : 'content_copy'"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </template>
+                        
                         <p x-show="editModalError" x-text="editModalError" class="mt-2 text-xs text-red-500" x-cloak></p>
                     </div>
 

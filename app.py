@@ -388,8 +388,8 @@ def get_data():
 
     return jsonify({
         'categories': structured_categories,
-        # *** UPDATED: Return exclusion status for feeds ***
-        'feeds': [{'id': f.id, 'title': f.title, 'category_id': f.category_id, 'exclude_from_all': f.exclude_from_all} for f in active_feeds],
+        # *** UPDATED: Added 'url' to the feed object ***
+        'feeds': [{'id': f.id, 'title': f.title, 'url': f.url, 'category_id': f.category_id, 'exclude_from_all': f.exclude_from_all} for f in active_feeds],
         'removedFeeds': [{'id': f.id, 'title': f.title, 'deleted_at': f.deleted_at.isoformat()} for f in removed_feeds],
         'customStreams': [{'id': cs.id, 'name': cs.name} for cs in active_streams],
         'removedStreams': [{'id': cs.id, 'name': cs.name, 'deleted_at': cs.deleted_at.isoformat()} for cs in removed_streams],

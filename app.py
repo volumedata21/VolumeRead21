@@ -36,6 +36,8 @@ custom_stream_feeds = db.Table('custom_stream_feeds',
 class Category(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False, unique=True)
+    # *** NEW: Layout Style (default, feed, threads, videos) ***
+    layout_style = db.Column(db.String(20), nullable=True) 
     feeds = db.relationship('Feed', backref='category', lazy='dynamic')
 
 class Feed(db.Model):
@@ -48,6 +50,8 @@ class Feed(db.Model):
     exclude_from_all = db.Column(db.Boolean, default=False, nullable=False)
     etag = db.Column(db.String(200), nullable=True)
     last_modified = db.Column(db.String(200), nullable=True)
+    # *** NEW: Layout Style ***
+    layout_style = db.Column(db.String(20), nullable=True)
     custom_streams = db.relationship('CustomStream', secondary=custom_stream_feeds, lazy='dynamic', back_populates='feeds')
 
 class Article(db.Model):
@@ -66,6 +70,8 @@ class Article(db.Model):
 class CustomStream(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False, unique=True)
+    # *** NEW: Layout Style ***
+    layout_style = db.Column(db.String(20), nullable=True)
     feeds = db.relationship('Feed', secondary=custom_stream_feeds, lazy='dynamic', back_populates='custom_streams')
     deleted_at = db.Column(db.DateTime(timezone=False), nullable=True)
 
@@ -149,12 +155,37 @@ def _update_articles_for_feed(feed_instance, feed_data):
         if Article.query.filter_by(link=entry.link).first():
             continue
 
-        published_time = datetime.datetime.now()
-        if 'published_parsed' in entry and entry.published_parsed:
-            try:
-                published_time = datetime.datetime(*entry.published_parsed[:6])
-            except ValueError:
-                pass 
+        # --- IMPROVED DATE PARSING ---
+        published_time = None
+        
+        # 1. Try standard parsed fields first
+        for field in ['published_parsed', 'updated_parsed', 'created_parsed']:
+            if field in entry and entry[field]:
+                try:
+                    published_time = datetime.datetime(*entry[field][:6])
+                    break
+                except ValueError: pass
+        
+        # 2. If standard parsing failed, try raw strings for TikTok/Custom formats
+        if not published_time:
+            # Common raw fields where strings might live
+            raw_date = entry.get('published') or entry.get('updated') or entry.get('created')
+            if raw_date:
+                # Try 'YYYY-MM-DD' (e.g. '2020-10-20')
+                try:
+                    published_time = datetime.datetime.strptime(raw_date, '%Y-%m-%d')
+                except ValueError:
+                    # Try 'MM-DD' (e.g. '09-05'), assume current year
+                    try:
+                        temp_time = datetime.datetime.strptime(raw_date, '%m-%d')
+                        published_time = temp_time.replace(year=datetime.datetime.now().year)
+                    except ValueError:
+                        pass
+
+        # 3. Final Fallback
+        if not published_time:
+            published_time = datetime.datetime.now()
+
 
         content_html = next((item['value'] for item in entry.get('content', []) if 'value' in item), entry.get('summary', ''))
         summary_text = clean_text(entry.get('summary', ''), strip_html_tags=True)
@@ -232,7 +263,7 @@ def _update_articles_for_feed(feed_instance, feed_data):
     return added_count
 
 def get_category_data(category):
-    return {'id': category.id, 'name': category.name}
+    return {'id': category.id, 'name': category.name, 'layout_style': category.layout_style}
 
 def get_rss_bridge_feed(base_url, target_url):
     """Queries RSS-Bridge to find or generate a feed URL."""
@@ -287,9 +318,9 @@ def get_data():
 
     return jsonify({
         'categories': [get_category_data(cat) for cat in categories],
-        'feeds': [{'id': f.id, 'title': f.title, 'url': f.url, 'category_id': f.category_id, 'exclude_from_all': f.exclude_from_all} for f in active_feeds],
+        'feeds': [{'id': f.id, 'title': f.title, 'url': f.url, 'category_id': f.category_id, 'exclude_from_all': f.exclude_from_all, 'layout_style': f.layout_style} for f in active_feeds],
         'removedFeeds': [{'id': f.id, 'title': f.title, 'deleted_at': f.deleted_at.isoformat()} for f in removed_feeds],
-        'customStreams': [{'id': cs.id, 'name': cs.name} for cs in active_streams],
+        'customStreams': [{'id': cs.id, 'name': cs.name, 'layout_style': cs.layout_style} for cs in active_streams],
         'removedStreams': [{'id': cs.id, 'name': cs.name, 'deleted_at': cs.deleted_at.isoformat()} for cs in removed_streams],
         'customStreamFeedLinks': [{'custom_stream_id': link.custom_stream_id, 'feed_id': link.feed_id} for link in stream_feed_links],
     })
@@ -618,6 +649,9 @@ def update_feed_settings(feed_id):
         feed.title = data.get('name').strip()
     if data.get('exclude_from_all') is not None:
         feed.exclude_from_all = bool(data.get('exclude_from_all'))
+    # *** NEW: Update Layout Style ***
+    if 'layout_style' in data:
+        feed.layout_style = data.get('layout_style')
         
     db.session.commit()
     return jsonify({'success': True})
@@ -673,6 +707,10 @@ def update_category_settings(category_id):
             feed = Feed.query.get(feed_id)
             if feed and feed.category_id == category_id:
                 feed.exclude_from_all = bool(state)
+    
+    # *** NEW: Update Layout Style ***
+    if 'layout_style' in data:
+        category.layout_style = data.get('layout_style')
                 
     db.session.commit()
     return jsonify({'success': True})
@@ -706,6 +744,26 @@ def permanent_delete_stream(stream_id):
 def restore_stream(stream_id):
     stream = CustomStream.query.get_or_404(stream_id)
     stream.deleted_at = None
+    db.session.commit()
+    return jsonify({'success': True})
+
+# *** NEW: Update Stream Settings Route ***
+@app.route('/api/custom_stream/<int:stream_id>', methods=['PUT'])
+def update_stream_settings(stream_id):
+    data = request.get_json()
+    stream = CustomStream.query.get_or_404(stream_id)
+    
+    if data.get('name'):
+        # Ensure name is unique if changed
+        new_name = data.get('name').strip()
+        if new_name != stream.name:
+             if CustomStream.query.filter_by(name=new_name).first():
+                 return jsonify({'error': 'Stream with this name already exists'}), 400
+             stream.name = new_name
+    
+    if 'layout_style' in data:
+        stream.layout_style = data.get('layout_style')
+
     db.session.commit()
     return jsonify({'success': True})
 

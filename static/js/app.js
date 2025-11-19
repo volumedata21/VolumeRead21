@@ -514,11 +514,14 @@ document.addEventListener('alpine:init', () => {
             
             // *** UPDATED: Pre-calculate embed HTML ***
             this.modalEmbedHtml = this.getYouTubeEmbed(article.link) || 
+                                  this.getTikTokEmbed(article.link) || // Added TikTok
+                                  this.getVimeoEmbed(article.link) ||  // Added Vimeo
+                                  this.getDailymotionEmbed(article.link) || // Added Dailymotion
                                   this.getRedgifsEmbed(article.full_content) || 
                                   this.getImgurEmbed(article.full_content) || 
                                   this.getStreamableEmbed(article.full_content) || 
                                   this.getGfycatEmbed(article.full_content) ||
-                                  this.getTwitchClipEmbed(article.full_content) || // Added
+                                  this.getTwitchClipEmbed(article.full_content) || 
                                   this.getOtherGifEmbed(article.full_content);
 
             // SCROLL FIX
@@ -546,6 +549,38 @@ document.addEventListener('alpine:init', () => {
             // Use summary if full_content is empty
             if (!content) {
                 content = article.summary || '';
+            }
+
+            // *** NEW: Detect and remove duplicate image AND clean text for video embeds ***
+            // MODIFIED: If we have a video embed, remove ALL images from the text content
+            // to prevent the "still" image from showing up below the video.
+            if (this.modalEmbedHtml && content) {
+                 try {
+                    const tempDiv = document.createElement('div');
+                    tempDiv.innerHTML = content;
+                    
+                    // Remove all images
+                    const images = tempDiv.querySelectorAll('img');
+                    images.forEach(img => img.remove());
+
+                    // Remove all figures (often contain images)
+                    const figures = tempDiv.querySelectorAll('figure');
+                    figures.forEach(fig => fig.remove());
+
+                    // Remove "Tik Tok" or "TikTok" generic text if present
+                    // This iterates over text nodes to safely remove the specific phrase
+                    const walk = document.createTreeWalker(tempDiv, NodeFilter.SHOW_TEXT, null, false);
+                    let node;
+                    while (node = walk.nextNode()) {
+                        if (node.nodeValue.trim().toLowerCase() === 'tik tok' || node.nodeValue.trim().toLowerCase() === 'tiktok') {
+                            node.nodeValue = '';
+                        }
+                    }
+
+                    content = tempDiv.innerHTML;
+                } catch (e) {
+                    console.error("Error cleaning modal content:", e);
+                }
             }
 
             // --- Video Description Formatting (YouTube style) ---
@@ -603,7 +638,7 @@ document.addEventListener('alpine:init', () => {
                 }
             }
 
-            // *** NEW: Detect and remove duplicate image ***
+            // *** NEW: Detect and remove duplicate image (Fallback for non-video articles) ***
             // Check if there's a main image URL and if we *aren't* showing a video embed.
             if (article.image_url && !this.modalEmbedHtml) {
                 try {
@@ -644,6 +679,74 @@ document.addEventListener('alpine:init', () => {
                 `;
             }
             return null; // Not a YouTube video
+        },
+
+        // *** NEW: TIKTOK EMBED FUNCTION ***
+        getTikTokEmbed(link) {
+            if (!link) return null;
+            // Regex for tiktok.com/@user/video/ID
+            const regex = /tiktok\.com\/@[\w.]+\/video\/(\d+)/;
+            const match = link.match(regex);
+
+            if (match && match[1]) {
+                const videoId = match[1];
+                // Using the v2 embed iframe endpoint
+                return `
+                    <div class="rounded-lg overflow-hidden flex justify-center bg-black">
+                        <iframe src="https://www.tiktok.com/embed/v2/${videoId}"
+                                style="width: 325px; height: 700px; max-width: 100%;"
+                                frameborder="0" 
+                                allow="encrypted-media;">
+                        </iframe>
+                    </div>
+                `;
+            }
+            return null;
+        },
+
+        // *** NEW: VIMEO EMBED FUNCTION ***
+        getVimeoEmbed(link) {
+            if (!link) return null;
+            // UPDATED: More robust regex to handle vimeo.com/channels/..., vimeo.com/groups/..., etc.
+            // It looks for 'vimeo.com/' followed by optional path segments, then the numeric ID.
+            const regex = /vimeo\.com\/(?:.*\/)?(\d+)/;
+            const match = link.match(regex);
+
+            if (match && match[1]) {
+                const videoId = match[1];
+                return `
+                    <div class="aspect-w-16 aspect-h-9 rounded-lg overflow-hidden">
+                        <iframe src="https://player.vimeo.com/video/${videoId}?autoplay=1" 
+                                frameborder="0" 
+                                allow="autoplay; fullscreen; picture-in-picture" 
+                                allowfullscreen>
+                        </iframe>
+                    </div>
+                `;
+            }
+            return null;
+        },
+
+        // *** NEW: DAILYMOTION EMBED FUNCTION ***
+        getDailymotionEmbed(link) {
+            if (!link) return null;
+            // Regex for dailymotion.com/video/ID
+            const regex = /dailymotion\.com\/video\/([a-zA-Z0-9]+)/;
+            const match = link.match(regex);
+
+            if (match && match[1]) {
+                const videoId = match[1];
+                return `
+                    <div class="aspect-w-16 aspect-h-9 rounded-lg overflow-hidden">
+                        <iframe src="https://www.dailymotion.com/embed/video/${videoId}?autoplay=1" 
+                                frameborder="0" 
+                                allow="autoplay; fullscreen; picture-in-picture" 
+                                allowfullscreen>
+                        </iframe>
+                    </div>
+                `;
+            }
+            return null;
         },
 
         // REDGIFS EMBED FUNCTION

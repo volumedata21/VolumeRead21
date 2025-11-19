@@ -184,8 +184,9 @@ def _update_articles_for_feed(feed_instance, feed_data):
     """Parses feed data and adds new articles to the database for a given feed."""
     added_count = 0
     
-    # --- NEW: Check if this is a YouTube feed ---
+    # --- NEW: Check video feed types ---
     is_youtube_feed = 'youtube.com' in feed_instance.url
+    is_dailymotion_feed = 'dailymotion.com' in feed_instance.url
 
     for entry in feed_data.entries:
         if Article.query.filter_by(link=entry.link).first():
@@ -207,52 +208,80 @@ def _update_articles_for_feed(feed_instance, feed_data):
         
         smart_summary = smart_truncate(summary_text, length=300)
         
-        # --- MODIFIED: YouTube Thumbnail Logic ---
+        # --- MODIFIED: Title Extraction Logic ---
+        raw_title = entry.get('title', 'Untitled Article')
+        clean_title = clean_text(raw_title, strip_html_tags=True)
+        
+        generic_titles = ['tik tok', 'tiktok', 'video', 'untitled article', 'untitled']
+        
+        if clean_title.lower().strip() in generic_titles:
+            soup = BeautifulSoup(content_html, 'html.parser')
+            text_content = soup.get_text(separator=' ', strip=True)
+            if text_content:
+                clean_title = smart_truncate(text_content, length=100)
+
+        # --- MODIFIED: Thumbnail Extraction Logic ---
         image_url_found = None
+        
+        # 1. YouTube
         if is_youtube_feed:
             try:
-                # Extract video ID from 'https://www.youtube.com/watch?v=VIDEO_ID' OR '/shorts/VIDEO_ID'
-                # We use (?:...) for non-capturing group on the prefix, so group(1) is always the ID
                 video_id_match = re.search(r'(?:watch\?v=|shorts\/)([a-zA-Z0-9_-]+)', entry.link)
                 if video_id_match:
                     video_id = video_id_match.group(1)
-                    # Use the hqdefault.jpg, which is reliable (480x360)
                     image_url_found = f'https://img.youtube.com/vi/{video_id}/hqdefault.jpg'
-                    print(f"Constructed YouTube thumbnail: {image_url_found}")
             except Exception as e:
                 print(f"Error extracting YouTube video ID: {e}")
-                # If regex fails, fall through to standard image finder
         
+        # 2. DailyMotion (NEW)
+        elif is_dailymotion_feed:
+            try:
+                # Extract ID from https://www.dailymotion.com/video/x8abcde
+                dm_id_match = re.search(r'/video/([a-zA-Z0-9]+)', entry.link)
+                if dm_id_match:
+                    dm_id = dm_id_match.group(1)
+                    image_url_found = f'https://www.dailymotion.com/thumbnail/video/{dm_id}'
+            except Exception as e:
+                 print(f"Error extracting DailyMotion video ID: {e}")
+
         if not image_url_found:
-            # Fallback for non-YouTube feeds or failed YouTube extraction
+            # Fallback for everything else
             image_url_found = find_image_url(entry)
         
-        # --- REMOVED: Old YouTube Hi-Res Thumbnail Fix ---
-        
-        # --- Pinterest Hi-Res Fix (This one can stay) ---
+        # --- Pinterest Hi-Res Fix ---
         if image_url_found and 'i.pinimg.com' in image_url_found:
-            # Try to replace thumbnail size with 'originals' for best quality
-            # e.g., /236x/ -> /originals/
-            # e.g., /564x/ -> /originals/
             hi_res_url = re.sub(r'\/(\d+x|236x)\/', '/originals/', image_url_found)
             if hi_res_url != image_url_found:
-                print(f"Upgraded Pinterest image URL to: {hi_res_url}")
                 image_url_found = hi_res_url
             else:
-                # Try replacing with 736x as another common high-res
                 hi_res_url = re.sub(r'\/(\d+x|236x)\/', '/736x/', image_url_found)
                 if hi_res_url != image_url_found:
-                    print(f"Upgraded Pinterest image URL to: {hi_res_url}")
                     image_url_found = hi_res_url
         # --- END: Pinterest Hi-Res Fix ---
         
+        # --- AUTHOR FIX ---
+        author_name = clean_text(entry.get('author', ''), strip_html_tags=True)
+        
+        # If author missing, try dc_creator
+        if not author_name:
+            author_name = clean_text(entry.get('dc_creator', ''), strip_html_tags=True)
+            
+        # If still missing and this is a specific platform feed, fallback to Feed Title
+        if not author_name or author_name == 'Unknown Author':
+             # For DM or TikTok or Vimeo user feeds, the Feed Title is typically the Channel Name
+             if is_dailymotion_feed or 'tiktok' in feed_instance.url or 'vimeo' in feed_instance.url:
+                 author_name = feed_instance.title
+        
+        if not author_name:
+            author_name = 'Unknown Author'
+
         new_article = Article(
-            title=clean_text(entry.get('title', 'Untitled Article'), strip_html_tags=True),
+            title=clean_title,
             link=entry.link,
             summary=smart_summary,
             full_content=clean_text(content_html, strip_html_tags=False),
-            image_url=image_url_found, # Use the (potentially) upgraded URL
-            author=clean_text(entry.get('author', 'Unknown Author'), strip_html_tags=True),
+            image_url=image_url_found,
+            author=author_name, # Use our fixed author
             published=published_time,
             feed_id=feed_instance.id
         )
@@ -489,6 +518,61 @@ def add_feed():
         # If regex fails, just proceed with the original URL
         pass
     # --- END: Pinterest URL Fix ---
+
+    # --- NEW: Vimeo URL Fix ---
+    try:
+        if 'vimeo.com' in url and not 'rss' in url:
+            # Regex matches vimeo.com/username, excluding video links
+            vimeo_match = re.match(r'(?:https?:\/\/)?(?:www\.)?vimeo\.com\/([a-zA-Z0-9_-]+)\/?$', url, re.IGNORECASE)
+            if vimeo_match:
+                username = vimeo_match.group(1)
+                url = f'https://vimeo.com/{username}/videos/rss'
+                print(f"Converted Vimeo URL to: {url}")
+    except Exception as e:
+        print(f"Error during Vimeo URL conversion: {e}")
+    # --- END: Vimeo URL Fix ---
+
+    # --- NEW: Dailymotion URL Fix ---
+    try:
+        if 'dailymotion.com' in url and not 'rss' in url:
+            # Regex matches dailymotion.com/username
+            dm_match = re.match(r'(?:https?:\/\/)?(?:www\.)?dailymotion\.com\/([a-zA-Z0-9_-]+)\/?.*', url, re.IGNORECASE)
+            if dm_match:
+                username = dm_match.group(1)
+                # Filter out if it accidentally matched 'video' or 'playlist' paths
+                if username not in ['video', 'playlist', 'rss']:
+                    url = f'https://www.dailymotion.com/rss/user/{username}'
+                    print(f"Converted Dailymotion URL to: {url}")
+    except Exception as e:
+        print(f"Error during Dailymotion URL conversion: {e}")
+    # --- END: Dailymotion URL Fix ---
+    
+    # --- NEW: TikTok URL Fix (Requires RSS-Bridge) ---
+    try:
+        if 'tiktok.com' in url:
+            rss_bridge_base_url = os.environ.get('RSS_BRIDGE_URL')
+            if rss_bridge_base_url:
+                # Regex for tiktok.com/@username
+                tiktok_match = re.match(r'(?:https?:\/\/)?(?:www\.)?tiktok\.com\/@([a-zA-Z0-9_.]+)', url, re.IGNORECASE)
+                if tiktok_match:
+                    username = tiktok_match.group(1)
+                    # Construct RSS-Bridge URL directly for TikTok Bridge
+                    # *** FIXED PARAMETERS based on RSS-Bridge logs ***
+                    # Changed 'u' to 'username' and 'User' to 'By user'
+                    params = {
+                        'action': 'display',
+                        'bridge': 'TikTok',
+                        'context': 'By user', 
+                        'username': username,
+                        'format': 'Atom'
+                    }
+                    url = f"{rss_bridge_base_url}/?{urlencode(params)}"
+                    print(f"Converted TikTok URL to Bridge URL: {url}")
+            else:
+                 print("TikTok URL detected but RSS_BRIDGE_URL not set.")
+    except Exception as e:
+        print(f"Error during TikTok URL conversion: {e}")
+    # --- END: TikTok URL Fix ---
 
     # --- REMOVED Dribbble URL Fix ---
 

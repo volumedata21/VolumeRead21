@@ -108,7 +108,9 @@
                  <a href="#" @click.prevent="setView('all')" class="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium hover:bg-[var(--bg-highlight)]/50" :class="currentView.type === 'all' ? 'main-nav-selected' : 'text-[var(--text-main)]'"><i class="material-icons" style="font-size:20px;">apps</i> All Feeds</a>
                  <!-- *** NEW: Videos Link *** -->
                  <a href="#" @click.prevent="setView('videos')" class="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium hover:bg-[var(--bg-highlight)]/50" :class="currentView.type === 'videos' ? 'main-nav-selected' : 'text-[var(--text-main)]'"><i class="material-icons" style="font-size:20px;">videocam</i> Videos</a>
-                 <!-- *** END: Videos Link *** -->
+                 <!-- *** NEW: Threads Link *** -->
+                 <a href="#" @click.prevent="setView('threads')" class="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium hover:bg-[var(--bg-highlight)]/50" :class="currentView.type === 'threads' ? 'main-nav-selected' : 'text-[var(--text-main)]'"><i class="material-icons" style="font-size:20px;">forum</i> Threads</a>
+                 
                  <a href="#" @click.prevent="setView('favorites')" class="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium hover:bg-[var(--bg-highlight)]/50" :class="currentView.type === 'favorites' ? 'main-nav-selected' : 'text-[var(--text-main)]'"><i class="material-icons" style="font-size:20px;">star_outline</i> Favorites</a>
                  <a href="#" @click.prevent="setView('readLater')" class="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium hover:bg-[var(--bg-highlight)]/50" :class="currentView.type === 'readLater' ? 'main-nav-selected' : 'text-[var(--text-main)]'"><i class="material-icons" style="font-size:20px;">bookmark_border</i> Read Later</a>
                  <hr class="border-[var(--divider-color)] mx-4 my-2">
@@ -368,25 +370,66 @@
              </header>
 
             <!-- Article Grid -->
-            <!-- *** MODIFIED: Changed to max 2 columns (sm:grid-cols-2) and removed lg:grid-cols-3. Added max-w-6xl mx-auto for better spacing on large screens. *** -->
-            <div class="grid grid-cols-1 gap-6 p-4 sm:grid-cols-2 max-w-6xl mx-auto" x-cloak>
+            <!-- *** MODIFIED: Dynamic Grid Layout. 
+                 If 'threads' view OR is_reddit_source: 1 column, narrower width (max-w-2xl).
+                 Otherwise: 1-2 columns, wider width (max-w-6xl). 
+            *** -->
+            <div class="grid gap-6 p-4 mx-auto" 
+                 :class="(currentView.type === 'threads' || currentView.is_reddit_source) ? 'grid-cols-1 max-w-2xl' : 'grid-cols-1 sm:grid-cols-2 max-w-6xl'" 
+                 x-cloak>
+                 
                  <template x-if="filteredArticles.length === 0">
                     <p class="text-[var(--text-secondary)]" x-text="getEmptyMessage()"></p>
                 </template>
                  <template x-for="article in filteredArticles" :key="article.id">
                      <div class="flex flex-col overflow-hidden rounded-lg bg-[var(--bg-medium)] shadow-lg group/card relative">
                          
-                         <!-- *** MODIFIED: Only show image box if image exists OR we are in video mode *** -->
+                         <!-- *** MODIFIED: Image Logic *** -->
                          <template x-if="article.image_url || currentView.type === 'videos'">
-                             <a href="#" @click.prevent="openModal(article)" :class="{ 'aspect-[16/9]': currentView.type === 'videos' }">
+                             <!-- Wrapper -->
+                             <a href="#" @click.prevent="openModal(article)" class="block bg-[var(--bg-darkest)]" :class="{ 'aspect-[16/9]': currentView.type === 'videos' }">
+                                 
                                  <template x-if="article.image_url">
-                                    <!-- *** UPDATED: Use handleImageError handler *** -->
-                                    <img :class="currentView.type === 'videos' ? 'w-full h-full object-cover' : 'h-64 w-full object-cover'" 
-                                         :src="article.image_url" 
-                                         alt="" 
-                                         @error="handleImageError($event)">
-                                    <div :class="currentView.type === 'videos' ? 'hidden h-full w-full items-center justify-center bg-[var(--bg-darkest)] text-[var(--text-secondary)]' : 'hidden h-64 w-full items-center justify-center bg-[var(--bg-darkest)] text-[var(--text-secondary)]'">(Image failed)</div>
+                                    <div class="w-full h-full">
+                                        
+                                        <!-- 1. Standard & Video View (Cropped / Aspect Ratio) -->
+                                        <!-- Only show if NOT a reddit source / thread view -->
+                                        <template x-if="currentView.type !== 'threads' && !currentView.is_reddit_source">
+                                            <div class="w-full h-full relative">
+                                                <img :class="currentView.type === 'videos' ? 'w-full h-full object-cover' : 'h-64 w-full object-cover'" 
+                                                     :src="article.image_url" 
+                                                     alt="" 
+                                                     @error="handleImageError($event)">
+                                                <div :class="currentView.type === 'videos' ? 'hidden h-full w-full items-center justify-center bg-[var(--bg-darkest)] text-[var(--text-secondary)]' : 'hidden h-64 w-full items-center justify-center bg-[var(--bg-darkest)] text-[var(--text-secondary)]'">(Image failed)</div>
+                                            </div>
+                                        </template>
+
+                                        <!-- 2. Threads/Reddit View (Uncropped with Blurred Backdrop) -->
+                                        <template x-if="currentView.type === 'threads' || currentView.is_reddit_source">
+                                            <div class="relative w-full overflow-hidden bg-[#0f131d]">
+                                                <!-- Blurred Background Layer -->
+                                                <div class="absolute inset-0">
+                                                    <img class="w-full h-full object-cover blur-2xl opacity-40 scale-125" 
+                                                         :src="article.image_url" 
+                                                         aria-hidden="true">
+                                                </div>
+                                                
+                                                <!-- Main Image (Centered, Uncropped) -->
+                                                <img class="relative z-10 max-w-full max-h-[70vh] w-auto mx-auto shadow-xl" 
+                                                     :src="article.image_url" 
+                                                     alt="" 
+                                                     @error="handleImageError($event)">
+                                                
+                                                <!-- Error State -->
+                                                <div class="hidden h-64 w-full items-center justify-center relative z-10 bg-[var(--bg-darkest)] text-[var(--text-secondary)]">
+                                                    (Image failed)
+                                                </div>
+                                            </div>
+                                        </template>
+
+                                    </div>
                                  </template>
+                                 
                                  <!-- Fallback for Videos view only -->
                                  <template x-if="!article.image_url && currentView.type === 'videos'">
                                     <div class="flex h-full w-full items-center justify-center bg-[var(--bg-darkest)] text-[var(--text-secondary)]">(No Image)</div>

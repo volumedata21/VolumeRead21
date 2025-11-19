@@ -127,3 +127,25 @@
     position: relative;
     z-index: 20; /* Ensure clickable above card link */
 }
+
+/* *** NEW: Table Reset for Card Previews *** */
+/* Fixes the issue where "submitted by..." text in Reddit/RSS-Bridge feeds
+   looks tabbed over because it's inside a table cell with default padding. */
+.card-preview-content table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 0;
+    padding: 0;
+}
+.card-preview-content td,
+.card-preview-content th {
+    padding: 0 !important;
+    margin: 0 !important;
+    text-align: left !important;
+    border: none !important;
+    vertical-align: top;
+}
+/* Add a tiny bit of spacing if there are multiple rows, but reset horizontal spacing */
+.card-preview-content tr + tr td {
+    padding-top: 0.5rem !important;
+}

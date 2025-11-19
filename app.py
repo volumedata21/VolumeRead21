@@ -413,12 +413,25 @@ def get_articles():
     # Base query
     query = Article.query.order_by(Article.published.desc())
     
+    # *** NEW: Flag to tell frontend to use 'Thread' layout ***
+    is_reddit_source = False
+
     # Apply filters based on view_type
     if view_type == 'feed' and view_id:
         query = query.filter(Article.feed_id == view_id)
+        # Check if this specific feed is a Reddit feed
+        feed = Feed.query.get(view_id)
+        if feed and 'reddit.com' in feed.url:
+            is_reddit_source = True
         
     elif view_type == 'category' and view_id:
         query = query.join(Feed).filter(Feed.category_id == view_id)
+        # *** NEW: Check if ALL feeds in category are Reddit feeds ***
+        category = Category.query.get(view_id)
+        if category:
+            active_feeds = category.feeds.filter(Feed.deleted_at.is_(None)).all()
+            if active_feeds and all('reddit.com' in f.url for f in active_feeds):
+                is_reddit_source = True
         
     elif view_type == 'custom_stream' and view_id:
         stream = CustomStream.query.get(view_id)
@@ -426,6 +439,11 @@ def get_articles():
             feed_ids = [f.id for f in stream.feeds]
             if feed_ids:
                 query = query.filter(Article.feed_id.in_(feed_ids))
+                # *** NEW: Check if ALL feeds in stream are Reddit feeds ***
+                # We use the feed_ids to grab only the relevant Feed objects
+                stream_feeds = Feed.query.filter(Feed.id.in_(feed_ids), Feed.deleted_at.is_(None)).all()
+                if stream_feeds and all('reddit.com' in f.url for f in stream_feeds):
+                    is_reddit_source = True
             else:
                 # No feeds in stream, return no articles
                 query = query.filter(Article.id == -1) 
@@ -450,7 +468,11 @@ def get_articles():
                 Feed.url.like('%tiktok%') # Catches 'tiktok.com' or 'bridge=TikTok'
             )
         )
-    # --- END: Videos View ---
+    # --- NEW: Threads View (Reddit) ---
+    elif view_type == 'threads':
+        query = query.join(Feed).filter(Feed.url.like('%reddit.com%'))
+        is_reddit_source = True # Explicit 'Threads' view is always Reddit source
+    # --- END: Threads View ---
 
     # *** NEW: For 'all' view, filter out excluded feeds ***
     elif view_type == 'all':
@@ -479,7 +501,8 @@ def get_articles():
         ],
         'total_pages': pagination.pages,
         'current_page': page,
-        'has_next': pagination.has_next
+        'has_next': pagination.has_next,
+        'is_reddit_source': is_reddit_source # <--- Send this flag to frontend
     })
 
 

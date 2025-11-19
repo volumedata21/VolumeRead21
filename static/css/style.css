@@ -149,3 +149,45 @@
 .card-preview-content tr + tr td {
     padding-top: 0.5rem !important;
 }
+
+/* *** NEW: Author Pill Styles *** */
+.author-pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.15rem 0.75rem;
+    border-radius: 9999px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    transition: all 0.2s;
+    border: 1px solid transparent;
+    max-width: 200px; /* Prevent extremely long author names from breaking layout */
+}
+.author-pill:hover {
+    filter: brightness(120%);
+}
+.author-pill:disabled {
+    opacity: 0.7;
+    cursor: default;
+    filter: none;
+}
+
+/* 1. Default Style (Standard Article) */
+.pill-default {
+    background-color: rgba(35, 59, 75, 0.5); /* Matches var(--bg-highlight) */
+    color: var(--text-highlight);
+    border-color: rgba(95, 228, 253, 0.2);
+}
+
+/* 2. Video Style (Red/Rose) */
+.pill-video {
+    background-color: rgba(80, 20, 20, 0.5);
+    color: #fca5a5; /* Rose-300 */
+    border-color: rgba(248, 113, 113, 0.2);
+}
+
+/* 3. Thread Style (Orange/Amber) */
+.pill-thread {
+    background-color: rgba(70, 40, 10, 0.5);
+    color: #fcd34d; /* Amber-300 */
+    border-color: rgba(251, 191, 36, 0.2);
+}

@@ -343,35 +343,23 @@ def get_articles():
         if feed and ('reddit.com' in feed.url or 'lemmy.world' in feed.url):
             is_reddit_source = True
         
-    elif view_type == 'category' and view_id:
-        query = query.join(Feed).filter(Feed.category_id == view_id)
-        category = Category.query.get(view_id)
-        if category:
-            active_feeds = category.feeds.filter(Feed.deleted_at.is_(None)).all()
-            if active_feeds and all(('reddit.com' in f.url or 'lemmy.world' in f.url) for f in active_feeds):
-                is_reddit_source = True
-        
-    elif view_type == 'custom_stream' and view_id:
-        stream = CustomStream.query.get(view_id)
-        if stream:
-            feed_ids = [f.id for f in stream.feeds]
-            if feed_ids:
-                query = query.filter(Article.feed_id.in_(feed_ids))
-                stream_feeds = Feed.query.filter(Feed.id.in_(feed_ids), Feed.deleted_at.is_(None)).all()
-                if stream_feeds and all(('reddit.com' in f.url or 'lemmy.world' in f.url) for f in stream_feeds):
-                    is_reddit_source = True
-            else:
-                query = query.filter(Article.id == -1) 
-        
-    elif view_type == 'favorites':
-        query = query.filter(Article.is_favorite == True)
-        
-    elif view_type == 'readLater':
-        query = query.filter(Article.is_read_later == True)
-        
-    elif view_type == 'author' and author_name:
-        query = query.filter(Article.author == author_name)
-    
+    # --- NEW: Sites View (Everything except Videos and Threads) ---
+    elif view_type == 'sites':
+        # Filter OUT feeds that match video or thread domains
+        query = query.join(Feed).filter(
+            ~or_(
+                # Video domains
+                Feed.url.like('%youtube.com%'),
+                Feed.url.like('%vimeo.com%'),
+                Feed.url.like('%dailymotion.com%'),
+                Feed.url.like('%tiktok%'),
+                # Thread domains
+                Feed.url.like('%reddit.com%'),
+                Feed.url.like('%lemmy.world%')
+            )
+        )
+    # --- END: Sites View ---
+
     elif view_type == 'videos':
         query = query.join(Feed).filter(
             or_(

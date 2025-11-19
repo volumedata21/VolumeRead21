@@ -106,9 +106,11 @@
             <!-- Main Nav List -->
             <nav class="flex-1 space-y-1 overflow-y-auto px-4 pb-4">
                  <a href="#" @click.prevent="setView('all')" class="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium hover:bg-[var(--bg-highlight)]/50" :class="currentView.type === 'all' ? 'main-nav-selected' : 'text-[var(--text-main)]'"><i class="material-icons" style="font-size:20px;">apps</i> All Feeds</a>
-                 <!-- *** NEW: Videos Link *** -->
+                 
+                 <!-- *** NEW: Sites Link *** -->
+                 <a href="#" @click.prevent="setView('sites')" class="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium hover:bg-[var(--bg-highlight)]/50" :class="currentView.type === 'sites' ? 'main-nav-selected' : 'text-[var(--text-main)]'"><i class="material-icons" style="font-size:20px;">public</i> Sites</a>
+                 
                  <a href="#" @click.prevent="setView('videos')" class="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium hover:bg-[var(--bg-highlight)]/50" :class="currentView.type === 'videos' ? 'main-nav-selected' : 'text-[var(--text-main)]'"><i class="material-icons" style="font-size:20px;">videocam</i> Videos</a>
-                 <!-- *** NEW: Threads Link *** -->
                  <a href="#" @click.prevent="setView('threads')" class="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium hover:bg-[var(--bg-highlight)]/50" :class="currentView.type === 'threads' ? 'main-nav-selected' : 'text-[var(--text-main)]'"><i class="material-icons" style="font-size:20px;">forum</i> Threads</a>
                  
                  <a href="#" @click.prevent="setView('favorites')" class="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium hover:bg-[var(--bg-highlight)]/50" :class="currentView.type === 'favorites' ? 'main-nav-selected' : 'text-[var(--text-main)]'"><i class="material-icons" style="font-size:20px;">star_outline</i> Favorites</a>
@@ -439,7 +441,16 @@
                                  <template x-if="layoutMode === 'videos'">
                                     <a href="#" @click.prevent="setView('feed', article.feed_id)" class="inline-block rounded-full px-3 py-1 text-xs font-medium" :style="{ backgroundColor: 'var(--feed-pill-bg)', color: 'var(--feed-pill-text)', '&:hover': { backgroundColor: 'var(--feed-pill-hover-bg)' }}" x-text="article.feed_title"></a>
                                  </template>
-                                 <button x-show="layoutMode !== 'videos'" @click.prevent="setView('author', null, article.author)" class="truncate hover:underline disabled:no-underline disabled:cursor-default" :disabled="!article.author || article.author === 'Unknown Author'" x-text="article.author || 'Unknown Author'"></button>
+                                 
+                                 <!-- *** MODIFIED: Author Pill *** -->
+                                 <button x-show="layoutMode !== 'videos'" 
+                                         @click.prevent="setView('author', null, article.author)" 
+                                         class="author-pill truncate" 
+                                         :class="getAuthorClass(article)"
+                                         :disabled="!article.author || article.author === 'Unknown Author'" 
+                                         x-text="article.author || 'Unknown Author'">
+                                 </button>
+                                 
                                  <span x-text="formatRelativeTime(article.published)"></span>
                              </div>
                          </div>
@@ -717,6 +728,6 @@
             </form>
         </div>
     </div>
-    
+
 </body>
 </html>

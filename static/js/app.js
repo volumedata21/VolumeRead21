@@ -376,6 +376,29 @@ document.addEventListener('alpine:init', () => {
             }
         },
 
+        // --- NEW: Open View Settings (RESTORED) ---
+        openViewSettings() {
+            const type = this.currentView.type;
+            const id = this.currentView.id;
+            const title = this.currentTitle;
+
+            if (['all', 'videos', 'threads', 'favorites', 'readLater'].includes(type)) {
+                this.editModal = {
+                    type: 'global', 
+                    id: type,       
+                    currentName: title,
+                    url: '',
+                    layout_style: localStorage.getItem('style_' + type) || 'default'
+                };
+                this.editModalNewName = title;
+                this.editModalError = '';
+                this.editModalExcludeAll = false; 
+                this.isEditModalOpen = true;
+            } else {
+                this.openEditModal(type, id, title);
+            }
+        },
+
         // --- Edit Modal Functions ---
         openEditModal(type, id, currentName) {
             this.editModal = { type, id, currentName, url: '', layout_style: 'default' };
@@ -431,6 +454,7 @@ document.addEventListener('alpine:init', () => {
             this.editModalError = '';
             const { type, id } = this.editModal;
             
+            // *** NEW: Handle Global Views ***
             if (type === 'global') {
                 localStorage.setItem('style_' + id, this.editModal.layout_style);
                 this.isEditModalOpen = false;
@@ -778,7 +802,6 @@ document.addEventListener('alpine:init', () => {
                 this.copyToClipboard(article.link, article.id);
             }
         },
-        
         async apiRequest(method, url, body = null) {
             const options = {
                 method,

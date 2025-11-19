@@ -11,8 +11,9 @@ from concurrent.futures import ThreadPoolExecutor
 from flask import Flask, render_template, request, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.orm import joinedload
+from sqlalchemy import or_ # <-- ADDED: Needed for multiple filter conditions
 from sqlalchemy.sql import func
-from flask_migrate import Migrate # <-- ADD THIS IMPORT
+from flask_migrate import Migrate 
 
 
 ## --- App Setup ---
@@ -25,7 +26,7 @@ app = Flask(__name__)
 app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{db_path}'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
-migrate = Migrate(app, db) # <-- ADD THIS LINE
+migrate = Migrate(app, db)
 
 ## --- Database Models ---
 
@@ -229,7 +230,10 @@ def _update_articles_for_feed(feed_instance, feed_data):
                 video_id_match = re.search(r'(?:watch\?v=|shorts\/)([a-zA-Z0-9_-]+)', entry.link)
                 if video_id_match:
                     video_id = video_id_match.group(1)
-                    image_url_found = f'https://img.youtube.com/vi/{video_id}/hqdefault.jpg'
+                    # *** CHANGED: Use maxresdefault.jpg for HD quality ***
+                    # The frontend will handle the fallback to hqdefault if this doesn't exist.
+                    image_url_found = f'https://img.youtube.com/vi/{video_id}/maxresdefault.jpg'
+                    print(f"Constructed YouTube thumbnail: {image_url_found}")
             except Exception as e:
                 print(f"Error extracting YouTube video ID: {e}")
         
@@ -435,9 +439,17 @@ def get_articles():
     elif view_type == 'author' and author_name:
         query = query.filter(Article.author == author_name)
     
-    # --- NEW: Videos View ---
+    # --- MODIFIED: Videos View ---
     elif view_type == 'videos':
-        query = query.join(Feed).filter(Feed.url.like('%youtube.com%'))
+        # Filter for URLs that contain youtube, vimeo, dailymotion, or tiktok
+        query = query.join(Feed).filter(
+            or_(
+                Feed.url.like('%youtube.com%'),
+                Feed.url.like('%vimeo.com%'),
+                Feed.url.like('%dailymotion.com%'),
+                Feed.url.like('%tiktok%') # Catches 'tiktok.com' or 'bridge=TikTok'
+            )
+        )
     # --- END: Videos View ---
 
     # *** NEW: For 'all' view, filter out excluded feeds ***

@@ -380,7 +380,11 @@
                          <template x-if="article.image_url || currentView.type === 'videos'">
                              <a href="#" @click.prevent="openModal(article)" :class="{ 'aspect-[16/9]': currentView.type === 'videos' }">
                                  <template x-if="article.image_url">
-                                    <img :class="currentView.type === 'videos' ? 'w-full h-full object-cover' : 'h-64 w-full object-cover'" :src="article.image_url" alt="" @error="$event.target.style.display='none'; $event.target.nextElementSibling.style.display='flex'">
+                                    <!-- *** UPDATED: Use handleImageError handler *** -->
+                                    <img :class="currentView.type === 'videos' ? 'w-full h-full object-cover' : 'h-64 w-full object-cover'" 
+                                         :src="article.image_url" 
+                                         alt="" 
+                                         @error="handleImageError($event)">
                                     <div :class="currentView.type === 'videos' ? 'hidden h-full w-full items-center justify-center bg-[var(--bg-darkest)] text-[var(--text-secondary)]' : 'hidden h-64 w-full items-center justify-center bg-[var(--bg-darkest)] text-[var(--text-secondary)]'">(Image failed)</div>
                                  </template>
                                  <!-- Fallback for Videos view only -->

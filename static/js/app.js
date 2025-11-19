@@ -98,6 +98,20 @@ document.addEventListener('alpine:init', () => {
                 }
             }
         },
+        
+        // --- Infinite Scroll Handler ---
+        handleScroll(event) {
+            const el = event.target;
+            // Check if scrolled to near the bottom (within 300px)
+            if (el.scrollHeight - el.scrollTop - el.clientHeight < 300) {
+                this.loadMoreArticles();
+            }
+        },
+        
+        // *** RESTORED: The missing function ***
+        loadMoreArticles() {
+            this.fetchArticles(false); 
+        },
 
         // --- API: Data Fetching ---
         async fetchAppData() {
@@ -255,30 +269,24 @@ document.addEventListener('alpine:init', () => {
             this.isMobileMenuOpen = false;
         },
         
-        // --- Layout Mode Getter (UPDATED) ---
+        // --- Layout Mode Getter ---
         get layoutMode() {
-            // 1. DB User Preference (Specific feed/category settings)
             if (this.currentView.assigned_style && this.currentView.assigned_style !== 'default') {
                 return this.currentView.assigned_style;
             }
-
-            // 2. Global View User Preference (Local Storage for 'all', 'videos', 'threads')
-            // Only applies if we are in one of those top-level views
+            // Global view preference
             if (['all', 'videos', 'threads', 'favorites', 'readLater'].includes(this.currentView.type)) {
                 const localStyle = localStorage.getItem('style_' + this.currentView.type);
                 if (localStyle && localStyle !== 'default') {
                     return localStyle;
                 }
             }
-
-            // 3. System Defaults (Fallback)
             if (this.currentView.type === 'threads' || this.currentView.is_reddit_source) {
                 return 'threads';
             }
             if (this.currentView.type === 'videos') {
                 return 'videos';
             }
-            
             return 'standard';
         },
 
@@ -368,32 +376,6 @@ document.addEventListener('alpine:init', () => {
             }
         },
 
-        // --- NEW: Open View Settings (for Header Button) ---
-        openViewSettings() {
-            // Determine if this is a Global view (All, Videos, Threads) or a DB view
-            const type = this.currentView.type;
-            const id = this.currentView.id;
-            const title = this.currentTitle;
-
-            if (['all', 'videos', 'threads', 'favorites', 'readLater'].includes(type)) {
-                // Open modal in "Global" mode
-                this.editModal = {
-                    type: 'global', // Special flag
-                    id: type,       // Use the view type as the ID key
-                    currentName: title,
-                    url: '',
-                    layout_style: localStorage.getItem('style_' + type) || 'default'
-                };
-                this.editModalNewName = title;
-                this.editModalError = '';
-                this.editModalExcludeAll = false; // Not used for global
-                this.isEditModalOpen = true;
-            } else {
-                // It's a Feed, Category, or Stream -> Use existing logic
-                this.openEditModal(type, id, title);
-            }
-        },
-
         // --- Edit Modal Functions ---
         openEditModal(type, id, currentName) {
             this.editModal = { type, id, currentName, url: '', layout_style: 'default' };
@@ -449,16 +431,13 @@ document.addEventListener('alpine:init', () => {
             this.editModalError = '';
             const { type, id } = this.editModal;
             
-            // *** HANDLE GLOBAL VIEWS (LocalStorage) ***
             if (type === 'global') {
                 localStorage.setItem('style_' + id, this.editModal.layout_style);
                 this.isEditModalOpen = false;
-                // Trigger reactivity by "re-setting" the view to itself effectively
                 this.currentView = { ...this.currentView }; 
                 return;
             }
 
-            // *** HANDLE DB VIEWS (API) ***
             const newName = this.editModalNewName.trim();
             let url = '';
             let payload = { name: newName, layout_style: this.editModal.layout_style };
@@ -489,18 +468,14 @@ document.addEventListener('alpine:init', () => {
             }
         },
 
-        // ... rest of app.js functions ...
-        // (addFeed, softDeleteFeed, etc... are identical to previous)
+        // --- API: Feed Management ---
         async addFeed() {
-            console.log("Attempting to add feed:", this.newFeedUrl);
             this.feedError = '';
             if (!this.newFeedUrl) return;
             const data = await this.apiPost('/api/add_feed', { url: this.newFeedUrl });
             if (data.error) {
-                console.error("Add feed error:", data.error);
                 this.feedError = data.error;
             } else {
-                console.log("Feed added successfully");
                 this.newFeedUrl = '';
                 await this.fetchAppData();
                 await this.fetchArticles(true);
@@ -579,9 +554,12 @@ document.addEventListener('alpine:init', () => {
                 }
             }
         },
+        
+        // --- Modal & Sharing ---
         openModal(article) {
             this.modalArticle = article;
             this.isModalOpen = true;
+            
             this.modalEmbedHtml = this.getYouTubeEmbed(article.link) || 
                                   this.getTikTokEmbed(article.link) || 
                                   this.getVimeoEmbed(article.link) ||  
@@ -606,9 +584,11 @@ document.addEventListener('alpine:init', () => {
                 this.modalEmbedHtml = null;
             }, 200);
         },
+        
         renderModalContent(article) {
             let content = article.full_content;
             if (!content) content = article.summary || '';
+
             if (this.modalEmbedHtml && content) {
                  try {
                     const tempDiv = document.createElement('div');
@@ -627,6 +607,7 @@ document.addEventListener('alpine:init', () => {
                     console.error("Error cleaning modal content:", e);
                 }
             }
+
             if (this.modalEmbedHtml && content) {
                 const hasHtmlTags = /<br|<p|<div/i.test(content);
                 if (!hasHtmlTags) {
@@ -659,6 +640,7 @@ document.addEventListener('alpine:init', () => {
                     }
                 }
             }
+
             if (article.image_url && !this.modalEmbedHtml) {
                 try {
                     const tempDiv = document.createElement('div');
@@ -674,6 +656,8 @@ document.addEventListener('alpine:init', () => {
             }
             return content;
         },
+
+        // ... (Embed generators remain the same)
         getYouTubeEmbed(link) {
             if (!link) return null;
             const regex = /(?:https?:\/\/)?(?:www\.)?youtube\.com\/(?:watch\?v=|shorts\/)([a-zA-Z0-9_-]{11})/;
@@ -772,6 +756,7 @@ document.addEventListener('alpine:init', () => {
             }
             return null;
         },
+
         copyToClipboard(link, id) {
             try {
                 const ta = document.createElement('textarea');
@@ -793,6 +778,7 @@ document.addEventListener('alpine:init', () => {
                 this.copyToClipboard(article.link, article.id);
             }
         },
+        
         async apiRequest(method, url, body = null) {
             const options = {
                 method,

@@ -378,7 +378,6 @@
              </header>
 
             <!-- Article Grid -->
-            <!-- *** MODIFIED: Uses layoutMode to determine grid columns *** -->
             <div class="grid gap-6 p-4 mx-auto" 
                  :class="layoutMode === 'threads' ? 'grid-cols-1 max-w-2xl' : 'grid-cols-1 sm:grid-cols-2 max-w-6xl'" 
                  x-cloak>
@@ -387,17 +386,12 @@
                     <p class="text-[var(--text-secondary)]" x-text="getEmptyMessage()"></p>
                 </template>
                  <template x-for="article in filteredArticles" :key="article.id">
+                    <!-- ... (Card HTML unchanged) ... -->
                      <div class="flex flex-col overflow-hidden rounded-lg bg-[var(--bg-medium)] shadow-lg group/card relative">
-                         
-                         <!-- *** MODIFIED: Image Logic uses layoutMode *** -->
                          <template x-if="article.image_url || layoutMode === 'videos'">
-                             <!-- Wrapper -->
                              <a href="#" @click.prevent="openModal(article)" class="block bg-[var(--bg-darkest)]" :class="{ 'aspect-[16/9]': layoutMode === 'videos' }">
-                                 
                                  <template x-if="article.image_url">
                                     <div class="w-full h-full">
-                                        
-                                        <!-- 1. Standard & Video View (Cropped / Aspect Ratio) -->
                                         <template x-if="layoutMode !== 'threads'">
                                             <div class="w-full h-full relative">
                                                 <img :class="layoutMode === 'videos' ? 'w-full h-full object-cover' : 'h-64 w-full object-cover'" 
@@ -407,65 +401,45 @@
                                                 <div :class="layoutMode === 'videos' ? 'hidden h-full w-full items-center justify-center bg-[var(--bg-darkest)] text-[var(--text-secondary)]' : 'hidden h-64 w-full items-center justify-center bg-[var(--bg-darkest)] text-[var(--text-secondary)]'">(Image failed)</div>
                                             </div>
                                         </template>
-
-                                        <!-- 2. Threads View (Uncropped with Blurred Backdrop) -->
                                         <template x-if="layoutMode === 'threads'">
                                             <div class="relative w-full overflow-hidden bg-[#0f131d]">
-                                                <!-- Blurred Background Layer -->
                                                 <div class="absolute inset-0">
                                                     <img class="w-full h-full object-cover blur-2xl opacity-40 scale-125" 
                                                          :src="article.image_url" 
                                                          aria-hidden="true">
                                                 </div>
-                                                
-                                                <!-- Main Image (Centered, Uncropped) -->
                                                 <img class="relative z-10 max-w-full max-h-[70vh] w-auto mx-auto shadow-xl" 
                                                      :src="article.image_url" 
                                                      alt="" 
                                                      @error="handleImageError($event)">
-                                                
-                                                <!-- Error State -->
                                                 <div class="hidden h-64 w-full items-center justify-center relative z-10 bg-[var(--bg-darkest)] text-[var(--text-secondary)]">
                                                     (Image failed)
                                                 </div>
                                             </div>
                                         </template>
-
                                     </div>
                                  </template>
-                                 
-                                 <!-- Fallback for Videos view only -->
                                  <template x-if="!article.image_url && layoutMode === 'videos'">
                                     <div class="flex h-full w-full items-center justify-center bg-[var(--bg-darkest)] text-[var(--text-secondary)]">(No Image)</div>
                                  </template>
                              </a>
                          </template>
-                         
                          <div class="flex flex-1 flex-col justify-between p-5">
                              <div class="flex-1">
-                                <!-- Title -->
                                 <h3 class="font-semibold text-[var(--text-bright)]" :class="layoutMode === 'videos' ? 'text-base' : 'text-xl'">
                                     <a href="#" @click.prevent="openModal(article)" class="hover:underline" x-text="article.title"></a>
                                 </h3>
-                                
-                                <!-- Text Preview -->
                                 <div class="mt-3 text-sm text-[var(--text-main)] prose prose-sm prose-invert max-w-none card-preview-content break-words leading-relaxed"
                                      :class="article.image_url && layoutMode !== 'videos' ? 'line-clamp-3' : 'line-clamp-[8]'"
                                      x-show="layoutMode !== 'videos'"
                                      x-html="article.full_content || article.summary">
                                 </div>
                             </div>
-                             
-                             <!-- Capsule / Author Info -->
                              <div class="mt-4 flex items-center justify-between text-sm text-[var(--text-secondary)]">
-                                 
-                                 <!-- Show feed title capsule ONLY in video view -->
                                  <template x-if="layoutMode === 'videos'">
                                     <a href="#" @click.prevent="setView('feed', article.feed_id)" class="inline-block rounded-full px-3 py-1 text-xs font-medium" :style="{ backgroundColor: 'var(--feed-pill-bg)', color: 'var(--feed-pill-text)', '&:hover': { backgroundColor: 'var(--feed-pill-hover-bg)' }}" x-text="article.feed_title"></a>
                                  </template>
-                                 
                                  <button x-show="layoutMode !== 'videos'" @click.prevent="setView('author', null, article.author)" class="truncate hover:underline disabled:no-underline disabled:cursor-default" :disabled="!article.author || article.author === 'Unknown Author'" x-text="article.author || 'Unknown Author'"></button>
-                                 
                                  <span x-text="formatRelativeTime(article.published)"></span>
                              </div>
                          </div>
@@ -479,14 +453,23 @@
                  </template>
             </div>
             
-            <!-- Loading indicator at the bottom -->
-            <div class="py-8 text-center" x-show="isLoadingArticles && articles.length > 0" x-cloak>
-                 <p class="text-[var(--text-secondary)]">Loading more articles...</p>
+            <!-- *** UPDATED: Loading Indicator & Manual Load Button *** -->
+            <div class="py-8 text-center" x-cloak>
+                 <p x-show="isLoadingArticles" class="text-[var(--text-secondary)]">Loading more articles...</p>
+                 <button x-show="!isLoadingArticles && hasNextPage" 
+                         @click="loadMoreArticles()" 
+                         class="mt-4 rounded-md bg-[var(--bg-highlight)] px-4 py-2 text-sm font-medium text-[var(--text-bright)] hover:bg-[var(--bg-highlight-hover)] transition-colors">
+                     Load More
+                 </button>
+                 <p x-show="!isLoadingArticles && !hasNextPage && articles.length > 0" class="text-[var(--text-secondary)] text-sm italic mt-4">
+                     You've reached the end.
+                 </p>
             </div>
 
         </main>
     </div>
 
+    <!-- ... (Rest of Modal HTML) ... -->
     <!-- Article Modal -->
     <div x-show="isModalOpen" @keydown.escape.window="closeModal()" class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/80 p-4 pt-12 sm:p-8" x-cloak>
         <!-- Modal Overlay -->

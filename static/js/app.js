@@ -36,6 +36,7 @@ document.addEventListener('alpine:init', () => {
         isModalOpen: false,
         modalArticle: null,
         modalEmbedHtml: null, 
+        activeArticleIndex: -1, // *** NEW: Track current index for autoplay ***
         isRefreshing: false,
         copiedArticleId: null,
         
@@ -63,7 +64,7 @@ document.addEventListener('alpine:init', () => {
         dragOverStreamId: null,
 
         // --- Bulk Assign State ---
-        selectedFeedIds: [], // Array of feed IDs
+        selectedFeedIds: [], 
         isAssignModalOpen: false,
         assignModalCategoryId: 'none', 
         assignModalStreamIds: [], 
@@ -76,20 +77,41 @@ document.addEventListener('alpine:init', () => {
         editModalExcludeAll: false,
         editModalFeedStates: {},
 
-        // --- Settings/Import/Export State (NEW) ---
+        // --- Settings/Import/Export State ---
         isSettingsModalOpen: false,
-        importStatus: '', // 'uploading', 'success', 'error'
+        importStatus: '', 
         importMessage: '',
+        
+        // --- YouTube API State ---
+        ytPlayer: null,
+        isYtApiReady: false,
 
         // --- Init Function ---
         async init() {
+            this.loadYouTubeApi(); // *** NEW: Load YT API ***
             this.isRefreshing = true;
             await this.fetchAppData();
-            await this.fetchArticles(true); // Fetch first page
+            await this.fetchArticles(true); 
             this.isRefreshing = false;
             
             // Auto-refresh every 15 minutes
             setInterval(() => this.refreshAllFeeds(true), 15 * 60 * 1000);
+        },
+
+        // *** NEW: Load YouTube IFrame API ***
+        loadYouTubeApi() {
+            if (window.YT) {
+                this.isYtApiReady = true;
+                return;
+            }
+            const tag = document.createElement('script');
+            tag.src = "https://www.youtube.com/iframe_api";
+            const firstScriptTag = document.getElementsByTagName('script')[0];
+            firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+            
+            window.onYouTubeIframeAPIReady = () => {
+                this.isYtApiReady = true;
+            };
         },
 
         // --- Smart Image Error Handler ---
@@ -109,7 +131,6 @@ document.addEventListener('alpine:init', () => {
         // --- Infinite Scroll Handler ---
         handleScroll(event) {
             const el = event.target;
-            // Check if scrolled to near the bottom (within 300px)
             if (el.scrollHeight - el.scrollTop - el.clientHeight < 300) {
                 this.loadMoreArticles();
             }
@@ -173,7 +194,7 @@ document.addEventListener('alpine:init', () => {
                     this.currentView.is_reddit_source = true;
                 }
 
-                this.currentPage += 1; // Increment for the *next* call
+                this.currentPage += 1; 
                 
             } catch (error) {
                 console.error('Error fetching articles:', error);
@@ -187,9 +208,8 @@ document.addEventListener('alpine:init', () => {
             this.isRefreshing = true;
             try {
                 await fetch('/api/refresh_all_feeds', { method: 'POST' });
-                // On success, reload everything
                 await this.fetchAppData();
-                await this.fetchArticles(true); // Refetch articles for current view
+                await this.fetchArticles(true); 
             } catch (error) {
                 console.error('Error refreshing feeds:', error);
             } finally {
@@ -197,7 +217,7 @@ document.addEventListener('alpine:init', () => {
             }
         },
         
-        // --- Computed Properties (Getters) ---
+        // --- Computed Properties ---
         get currentTitle() {
             if (this.currentView.type === 'all') return 'All Feeds';
             if (this.currentView.type === 'favorites') return 'Favorites';
@@ -227,7 +247,6 @@ document.addEventListener('alpine:init', () => {
         get filteredArticles() {
             let articles = [...this.articles];
 
-            // 1. Filter by Search
             if (this.searchQuery.trim() !== '') {
                 const query = this.searchQuery.toLowerCase();
                 articles = articles.filter(a =>
@@ -238,7 +257,6 @@ document.addEventListener('alpine:init', () => {
                 );
             }
 
-            // 2. Sort
             articles.sort((a, b) => {
                 const dateA = new Date(a.published);
                 const dateB = new Date(b.published);
@@ -257,8 +275,6 @@ document.addEventListener('alpine:init', () => {
         
         // --- View & Navigation ---
         setView(type, id = null, title = null) {
-            // Initialize view. 
-            // We retrieve the layout_style from the appData based on the view type/ID
             let assignedStyle = null;
             if (type === 'feed') {
                 const f = this.appData.feeds.find(x => x.id === id);
@@ -276,7 +292,7 @@ document.addEventListener('alpine:init', () => {
                 id, 
                 title, 
                 is_reddit_source: (type === 'threads'),
-                assigned_style: assignedStyle // Store the user preference
+                assigned_style: assignedStyle 
             };
             
             this.searchQuery = '';
@@ -284,31 +300,23 @@ document.addEventListener('alpine:init', () => {
             this.isMobileMenuOpen = false;
         },
         
-        // --- Layout Mode Getter ---
         get layoutMode() {
-            // 1. DB User Preference (Specific feed/category settings)
             if (this.currentView.assigned_style && this.currentView.assigned_style !== 'default') {
                 return this.currentView.assigned_style;
             }
-
-            // 2. Global View User Preference (Local Storage)
-            // Only applies if we are in one of those top-level views
             if (['all', 'videos', 'threads', 'sites', 'favorites', 'readLater'].includes(this.currentView.type)) {
                 const localStyle = localStorage.getItem('style_' + this.currentView.type);
                 if (localStyle && localStyle !== 'default') {
                     return localStyle;
                 }
             }
-
-            // 3. System Defaults (Fallback)
             if (this.currentView.type === 'threads' || this.currentView.is_reddit_source) {
                 return 'threads';
             }
             if (this.currentView.type === 'videos') {
                 return 'videos';
             }
-            
-            return 'standard'; // Default grid
+            return 'standard'; 
         },
 
         // --- Sidebar Toggles ---
@@ -327,7 +335,7 @@ document.addEventListener('alpine:init', () => {
             }
         },
         
-        // --- Sidebar Feed/Stream Helpers ---
+        // --- Sidebar Helpers ---
         getFeedsInCategory(categoryId) {
             return this.appData.feeds.filter(f => f.category_id === categoryId);
         },
@@ -340,7 +348,6 @@ document.addEventListener('alpine:init', () => {
         
         // --- Drag & Drop ---
         dragStartFeed(feedId, event) {
-            // Prevent drag if a feed is selected
             if (this.selectedFeedIds.length > 0) {
                 event.preventDefault();
                 return;
@@ -376,70 +383,53 @@ document.addEventListener('alpine:init', () => {
             this.selectedFeedIds = [];
         },
         openAssignModal() {
-            // Reset modal state
             this.assignModalCategoryId = 'none';
             this.assignModalStreamIds = [];
             this.isAssignModalOpen = true;
         },
         async assignFeeds() {
             if (this.selectedFeedIds.length === 0) return;
-            
             const payload = {
                 feed_ids: this.selectedFeedIds,
                 category_id: this.assignModalCategoryId === 'none' ? null : parseInt(this.assignModalCategoryId),
                 stream_ids: this.assignModalStreamIds.map(id => parseInt(id))
             };
-            
             const data = await this.apiPost('/api/assign_feeds_bulk', payload);
-            
             if (data.error) {
                 console.error("Error assigning feeds:", data.error);
-                alert("Error assigning feeds: " + data.error); // Simple error feedback
+                alert("Error assigning feeds: " + data.error); 
             } else {
-                // Success
                 this.isAssignModalOpen = false;
                 this.clearSelection();
-                // apiPost already re-fetches appData, which is perfect
             }
         },
 
-        // --- NEW: Open View Settings (RESTORED) ---
+        // --- View Settings ---
         openViewSettings() {
-            // Determine if this is a Global view (All, Videos, Threads) or a DB view
             const type = this.currentView.type;
             const id = this.currentView.id;
             const title = this.currentTitle;
 
-            // Added 'sites' to list of global views
             if (['all', 'videos', 'threads', 'sites', 'favorites', 'readLater'].includes(type)) {
-                // Open modal in "Global" mode
                 this.editModal = {
-                    type: 'global', // Special flag
-                    id: type,       // Use the view type as the ID key
+                    type: 'global', 
+                    id: type,       
                     currentName: title,
                     url: '',
                     layout_style: localStorage.getItem('style_' + type) || 'default'
                 };
                 this.editModalNewName = title;
                 this.editModalError = '';
-                this.editModalExcludeAll = false; // Not used for global
+                this.editModalExcludeAll = false; 
                 this.isEditModalOpen = true;
             } else {
-                // It's a Feed, Category, or Stream -> Use existing logic
                 this.openEditModal(type, id, title);
             }
         },
 
-        // --- Edit Modal Functions ---
+        // --- Edit Modal ---
         openEditModal(type, id, currentName) {
-            // Initialize defaults
-            this.editModal = { 
-                type, 
-                id, 
-                currentName, 
-                url: '', 
-                layout_style: 'default' // Default to 'default'
-            };
+            this.editModal = { type, id, currentName, url: '', layout_style: 'default' };
             this.editModalNewName = currentName;
             this.editModalError = '';
             this.editModalFeedStates = {};
@@ -454,23 +444,17 @@ document.addEventListener('alpine:init', () => {
                 }
             } else if (type === 'category') {
                 const cat = this.appData.categories.find(c => c.id === id);
-                if (cat) {
-                    this.editModal.layout_style = cat.layout_style || 'default';
-                }
+                if (cat) this.editModal.layout_style = cat.layout_style || 'default';
                 const feeds = this.getFeedsInCategory(id);
                 let allExcluded = feeds.length > 0;
                 for (const feed of feeds) {
                     this.editModalFeedStates[feed.id] = feed.exclude_from_all;
-                    if (!feed.exclude_from_all) {
-                        allExcluded = false;
-                    }
+                    if (!feed.exclude_from_all) allExcluded = false;
                 }
                 this.editModalExcludeAll = allExcluded;
             } else if (type === 'stream') { 
                 const stream = this.appData.customStreams.find(s => s.id === id);
-                if (stream) {
-                    this.editModal.layout_style = stream.layout_style || 'default';
-                }
+                if (stream) this.editModal.layout_style = stream.layout_style || 'default';
             }
 
             this.isEditModalOpen = true;
@@ -492,16 +476,13 @@ document.addEventListener('alpine:init', () => {
             this.editModalError = '';
             const { type, id } = this.editModal;
             
-            // *** HANDLE GLOBAL VIEWS (LocalStorage) ***
             if (type === 'global') {
                 localStorage.setItem('style_' + id, this.editModal.layout_style);
                 this.isEditModalOpen = false;
-                // Trigger reactivity by "re-setting" the view to itself effectively
                 this.currentView = { ...this.currentView }; 
                 return;
             }
 
-            // *** HANDLE DB VIEWS (API) ***
             const newName = this.editModalNewName.trim();
             let url = '';
             let payload = { name: newName, layout_style: this.editModal.layout_style };
@@ -524,11 +505,9 @@ document.addEventListener('alpine:init', () => {
                 this.editModalError = data.error;
             } else {
                 this.isEditModalOpen = false;
-                // Force view refresh to apply new styles immediately if we are currently viewing this item
                 if (this.currentView.type === (type === 'stream' ? 'custom_stream' : type) && this.currentView.id === id) {
                      this.setView(this.currentView.type, id, newName);
                 } else {
-                    // Otherwise just fetch data to update sidebar titles/state
                      await this.fetchAppData();
                 }
             }
@@ -542,7 +521,6 @@ document.addEventListener('alpine:init', () => {
         },
         
         exportFeeds() {
-            // Trigger browser download
             window.location.href = '/api/export_opml';
         },
         
@@ -557,19 +535,13 @@ document.addEventListener('alpine:init', () => {
             formData.append('file', file);
             
             try {
-                const response = await fetch('/api/import_opml', {
-                    method: 'POST',
-                    body: formData
-                });
-                
+                const response = await fetch('/api/import_opml', { method: 'POST', body: formData });
                 const data = await response.json();
                 
                 if (response.ok) {
                     this.importStatus = 'success';
                     this.importMessage = data.message;
-                    // Refresh app data to show new feeds
                     await this.fetchAppData();
-                    // Also trigger a content refresh in background
                     this.refreshAllFeeds(true);
                 } else {
                     this.importStatus = 'error';
@@ -579,12 +551,10 @@ document.addEventListener('alpine:init', () => {
                 this.importStatus = 'error';
                 this.importMessage = 'Network error during import';
             }
-            
-            // Clear input so same file can be selected again if needed
             event.target.value = '';
         },
 
-        // --- API: Feed Management ---
+        // --- API: CRUD Operations ---
         async addFeed() {
             this.feedError = '';
             if (!this.newFeedUrl) return;
@@ -609,11 +579,8 @@ document.addEventListener('alpine:init', () => {
             await this.apiDelete(`/api/feed/${feedId}/permanent`);
         },
         renameFeed(feedId, currentName) {
-            // This function is now OBSOLETE, but we keep it to prevent errors
             this.openEditModal('feed', feedId, currentName);
         },
-
-        // --- API: Category Management ---
         async addCategory() {
             this.categoryError = '';
             if (!this.newCategoryName) return;
@@ -631,8 +598,6 @@ document.addEventListener('alpine:init', () => {
         renameCategory(categoryId, currentName) {
             this.openEditModal('category', categoryId, currentName);
         },
-
-        // --- API: Stream Management ---
         async addCustomStream() {
             this.customStreamError = '';
             if (!this.newCustomStreamName) return;
@@ -657,8 +622,6 @@ document.addEventListener('alpine:init', () => {
         async removeFeedFromStream(streamId, feedId) {
             await this.apiDelete(`/api/custom_stream/${streamId}/feed/${feedId}`);
         },
-
-        // --- API: Article Actions ---
         async toggleFavorite(article) {
             const response = await this.apiPost(`/api/article/${article.id}/favorite`);
             if (response && typeof response.is_favorite !== 'undefined') {
@@ -678,15 +641,23 @@ document.addEventListener('alpine:init', () => {
             }
         },
         
-        // --- Modal & Sharing ---
+        // --- Modal & Autoplay ---
         openModal(article) {
+            // *** NEW: Destroy previous player instance if it exists ***
+            if (this.ytPlayer) {
+                try { this.ytPlayer.destroy(); } catch(e) {}
+                this.ytPlayer = null;
+            }
+
+            // 1. Track the current index for "Next" logic
+            const currentList = this.filteredArticles;
+            this.activeArticleIndex = currentList.findIndex(a => a.id === article.id);
+
             this.modalArticle = article;
             this.isModalOpen = true;
             
-            // *** UPDATED: Pre-calculate embed HTML ***
             this.modalEmbedHtml = this.getYouTubeEmbed(article.link) || 
                                   this.getTikTokEmbed(article.link) || 
-                                  // REDDIT REMOVED
                                   this.getVimeoEmbed(article.link) || 
                                   this.getDailymotionEmbed(article.link) || 
                                   this.getRedgifsEmbed(article.full_content) || 
@@ -696,51 +667,112 @@ document.addEventListener('alpine:init', () => {
                                   this.getTwitchClipEmbed(article.full_content) || 
                                   this.getOtherGifEmbed(article.full_content);
 
-            // SCROLL FIX
-            // Wait for the modal to be in the DOM, then scroll to top
             this.$nextTick(() => {
                 if (this.$refs.modalContent) {
                     this.$refs.modalContent.scrollTop = 0;
                 }
+                // *** NEW: Initialize watcher for autoplay ***
+                this.initVideoWatcher();
             });
         },
+
         closeModal() {
             this.isModalOpen = false;
-            // Wait for transition to finish (200ms) before clearing article
-            // to prevent content from disappearing during animation.
             setTimeout(() => {
                 this.modalArticle = null;
-                this.modalEmbedHtml = null; // NEW: Clear embed HTML
+                this.modalEmbedHtml = null; 
+                // Destroy YT player if exists to stop audio
+                if (this.ytPlayer) {
+                    try { this.ytPlayer.destroy(); } catch(e) {}
+                    this.ytPlayer = null;
+                }
             }, 200);
         },
+
+        // *** NEW: Autoplay Logic ***
+        initVideoWatcher() {
+            // Case A: YouTube Iframe
+            const ytIframe = document.getElementById('yt-player');
+            if (ytIframe) {
+                // *** FIX: Retry logic if API is not ready yet ***
+                if (!window.YT || !this.isYtApiReady) {
+                    setTimeout(() => this.initVideoWatcher(), 100);
+                    return;
+                }
+
+                // Initialize YT Player
+                // Check if player already exists to avoid double-init
+                if (this.ytPlayer) return;
+                
+                try {
+                    this.ytPlayer = new YT.Player('yt-player', {
+                        events: {
+                            'onStateChange': (event) => {
+                                // State 0 = ENDED
+                                if (event.data === 0) {
+                                    this.playNext();
+                                }
+                            }
+                        }
+                    });
+                } catch(e) {
+                    console.error("YT Player Init Error", e);
+                }
+                return;
+            }
+
+            // Case B: Native HTML5 Video (Imgur, uploads, etc)
+            const nativeVideo = document.querySelector('#modal-content video');
+            if (nativeVideo) {
+                nativeVideo.addEventListener('ended', () => {
+                    this.playNext();
+                });
+            }
+        },
+
+        // *** NEW: Play Next Function (Smart Skip) ***
+        playNext() {
+            if (this.activeArticleIndex === -1) return;
+            
+            let nextIndex = this.activeArticleIndex + 1;
+            const articles = this.filteredArticles;
+
+            // Loop to find the next autoplayable video
+            while (nextIndex < articles.length) {
+                const nextArticle = articles[nextIndex];
+                
+                // We only autoplay YouTube or Native videos (Imgur/MP4) because
+                // we can reliably detect when they end.
+                // We skip TikTok, Vimeo, Text posts, etc.
+                const isYouTube = !!this.getYouTubeEmbed(nextArticle.link);
+                const isNative = !!this.getImgurEmbed(nextArticle.full_content);
+
+                if (isYouTube || isNative) {
+                    console.log("Autoplaying next:", nextArticle.title);
+                    this.openModal(nextArticle);
+                    return;
+                }
+                
+                // If not supported, skip to next index
+                nextIndex++;
+            }
+
+            console.log("End of playlist.");
+        },
         
-        // *** MODIFIED: Added Formatting Logic for Video Descriptions ***
         renderModalContent(article) {
             let content = article.full_content;
-
-            // Use summary if full_content is empty
             if (!content) {
                 content = article.summary || '';
             }
-
-            // *** NEW: Detect and remove duplicate image AND clean text for video embeds ***
-            // MODIFIED: If we have a video embed, remove ALL images from the text content
-            // to prevent the "still" image from showing up below the video.
             if (this.modalEmbedHtml && content) {
                  try {
                     const tempDiv = document.createElement('div');
                     tempDiv.innerHTML = content;
-                    
-                    // Remove all images
                     const images = tempDiv.querySelectorAll('img');
                     images.forEach(img => img.remove());
-
-                    // Remove all figures (often contain images)
                     const figures = tempDiv.querySelectorAll('figure');
                     figures.forEach(fig => fig.remove());
-
-                    // Remove "Tik Tok" or "TikTok" generic text if present
-                    // This iterates over text nodes to safely remove the specific phrase
                     const walk = document.createTreeWalker(tempDiv, NodeFilter.SHOW_TEXT, null, false);
                     let node;
                     while (node = walk.nextNode()) {
@@ -748,26 +780,16 @@ document.addEventListener('alpine:init', () => {
                             node.nodeValue = '';
                         }
                     }
-
                     content = tempDiv.innerHTML;
                 } catch (e) {
                     console.error("Error cleaning modal content:", e);
                 }
             }
-
-            // --- Video Description Formatting (YouTube style) ---
-            // If we have an embed (video) and content exists, we assume it's a plain-text description
             if (this.modalEmbedHtml && content) {
-                // Check if it looks like plain text (no block tags like <p>, <br>, <div>)
-                // This prevents us from breaking descriptions that ARE already HTML formatted
                 const hasHtmlTags = /<br|<p|<div/i.test(content);
-                
                 if (!hasHtmlTags) {
-                    // 1. Linkify URLs
-                    // Matches http/https URLs that are NOT inside quotes or angle brackets
                     const urlRegex = /(https?:\/\/[^\s<"]+)/g;
                     content = content.replace(urlRegex, (url) => {
-                        // Handle trailing punctuation often found in text (e.g., "Check this: http://site.com.")
                         const trailing = url.match(/[.,;!)]+$/);
                         let cleanUrl = url;
                         let suffix = '';
@@ -775,43 +797,28 @@ document.addEventListener('alpine:init', () => {
                             suffix = trailing[0];
                             cleanUrl = url.substring(0, url.length - suffix.length);
                         }
-                        // Add highlighting classes
                         return `<a href="${cleanUrl}" target="_blank" rel="noopener noreferrer" class="text-[var(--text-highlight)] hover:underline">${cleanUrl}</a>${suffix}`;
                     });
-
-                    // 2. Linkify Timestamps (NEW)
-                    // Matches H:MM:SS or M:SS or MM:SS
                     const timestampRegex = /\b(?:(\d{1,2}):)?(\d{1,2}):(\d{2})\b/g;
                     content = content.replace(timestampRegex, (match, h, m, s) => {
                         let seconds = 0;
                         if (h) {
-                            // Format H:MM:SS
                             seconds = parseInt(h) * 3600 + parseInt(m) * 60 + parseInt(s);
                         } else {
-                            // Format M:SS (or MM:SS)
-                            // regex group 1 is undefined, so 'm' is actually group 2, 's' is group 3
                             seconds = parseInt(m) * 60 + parseInt(s);
                         }
                         return `<button onclick="window.seekToTimestamp(${seconds})" class="text-[var(--text-highlight)] hover:underline cursor-pointer">${match}</button>`;
                     });
-
-                    // 3. Convert newlines (Processed last to avoid breaking regexes)
-                    // Double newlines -> Paragraphs
-                    // Single newlines -> <br>
                     if (content.includes('\n')) {
                         const paragraphs = content.split(/\n\s*\n/);
                         content = paragraphs
                             .map(p => `<p class="mb-4">${p.replace(/\n/g, '<br>')}</p>`)
                             .join('');
                     } else {
-                        // Wrap in p tag if it's just one line
                          content = `<p>${content}</p>`;
                     }
                 }
             }
-
-            // *** NEW: Detect and remove duplicate image (Fallback for non-video articles) ***
-            // Check if there's a main image URL and if we *aren't* showing a video embed.
             if (article.image_url && !this.modalEmbedHtml) {
                 try {
                     const tempDiv = document.createElement('div');
@@ -825,39 +832,22 @@ document.addEventListener('alpine:init', () => {
                     console.error("Error removing duplicate image:", e);
                 }
             }
-
             return content;
         },
         
-        // *** NEW: Helper to determine pill color ***
-        getAuthorClass(article) {
-            const link = article.link.toLowerCase();
-            // Check for Video domains
-            if (link.includes('youtube.com') || link.includes('youtu.be') || link.includes('vimeo') || link.includes('dailymotion') || link.includes('tiktok')) {
-                return 'pill-video';
-            }
-            // Check for Thread domains
-            if (link.includes('reddit.com') || link.includes('lemmy')) {
-                return 'pill-thread';
-            }
-            // Default
-            return 'pill-default';
-        },
-
         // ... Embed Generators ...
         getYouTubeEmbed(link) {
             if (!link) return null;
-            // *** UPDATED REGEX to match /watch?v= and /shorts/ ***
             const regex = /(?:https?:\/\/)?(?:www\.)?youtube\.com\/(?:watch\?v=|shorts\/)([a-zA-Z0-9_-]{11})/;
             const match = link.match(regex);
             
             if (match && match[1]) {
                 const videoId = match[1];
-                // Return responsive embed HTML (requires @tailwindcss/aspect-ratio)
-                // *** MODIFIED: Added id="yt-player", enablejsapi=1 (for seeking), and autoplay=1 ***
+                // *** FIX: Added origin parameter (Required for enablejsapi) ***
+                const origin = window.location.origin;
                 return `
                     <div class="aspect-w-16 aspect-h-9 rounded-lg overflow-hidden">
-                        <iframe id="yt-player" src="https://www.youtube.com/embed/${videoId}?enablejsapi=1&autoplay=1" 
+                        <iframe id="yt-player" src="https://www.youtube.com/embed/${videoId}?enablejsapi=1&autoplay=1&origin=${origin}" 
                                 frameborder="0" 
                                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
                                 allowfullscreen>
@@ -865,19 +855,16 @@ document.addEventListener('alpine:init', () => {
                     </div>
                 `;
             }
-            return null; // Not a YouTube video
+            return null; 
         },
 
-        // *** NEW: TIKTOK EMBED FUNCTION ***
         getTikTokEmbed(link) {
             if (!link) return null;
-            // Regex for tiktok.com/@user/video/ID
             const regex = /tiktok\.com\/@[\w.]+\/video\/(\d+)/;
             const match = link.match(regex);
 
             if (match && match[1]) {
                 const videoId = match[1];
-                // Using the v2 embed iframe endpoint
                 return `
                     <div class="rounded-lg overflow-hidden flex justify-center bg-black">
                         <iframe src="https://www.tiktok.com/embed/v2/${videoId}"
@@ -891,10 +878,8 @@ document.addEventListener('alpine:init', () => {
             return null;
         },
         
-        // *** NEW: VIMEO EMBED FUNCTION ***
         getVimeoEmbed(link) {
             if (!link) return null;
-            // Regex for vimeo.com/ID
             const regex = /vimeo\.com\/(?:.*\/)?(\d+)/;
             const match = link.match(regex);
 
@@ -913,10 +898,8 @@ document.addEventListener('alpine:init', () => {
             return null;
         },
 
-        // *** NEW: DAILYMOTION EMBED FUNCTION ***
         getDailymotionEmbed(link) {
             if (!link) return null;
-            // Regex for dailymotion.com/video/ID
             const regex = /dailymotion\.com\/video\/([a-zA-Z0-9]+)/;
             const match = link.match(regex);
 
@@ -935,17 +918,13 @@ document.addEventListener('alpine:init', () => {
             return null;
         },
 
-        // REDGIFS EMBED FUNCTION
         getRedgifsEmbed(htmlContent) {
             if (!htmlContent) return null;
-            // Look for a redgifs link inside the HTML content
-            // This matches watch/ and ifr/ links
             const regex = /href="(?:https?:\/\/)?(?:www\.)?redgifs\.com\/(?:watch|ifr)\/([a-zA-Z0-9_-]+)"/;
             const match = htmlContent.match(regex);
 
             if (match && match[1]) {
                 const videoId = match[1];
-                // Use their iframe embed URL
                 return `
                     <div class="aspect-w-16 aspect-h-9 rounded-lg overflow-hidden">
                         <iframe src="https://www.redgifs.com/ifr/${videoId}"
@@ -957,18 +936,15 @@ document.addEventListener('alpine:init', () => {
                     </div>
                 `;
             }
-            return null; // Not a Redgifs video
+            return null; 
         },
 
-        // IMGUR EMBED FUNCTION
         getImgurEmbed(htmlContent) {
             if (!htmlContent) return null;
-            // Look for i.imgur.com links ending in .gifv or .mp4
             const regex = /href="(https?:\/\/i\.imgur\.com\/([a-zA-Z0-9]+)\.(mp4|gifv))"/;
             const match = htmlContent.match(regex);
 
             if (match && match[1]) {
-                // We want the .mp4 version for the video tag
                 const videoUrl = match[1].replace('.gifv', '.mp4'); 
                 
                 return `
@@ -980,13 +956,11 @@ document.addEventListener('alpine:init', () => {
                     </div>
                 `;
             }
-            return null; // Not an Imgur video
+            return null; 
         },
 
-        // OTHER GIF EMBED FUNCTION
         getOtherGifEmbed(htmlContent) {
             if (!htmlContent) return null;
-            // Look for any other link ending in .gif (e.g., i.redd.it)
             const regex = /href="([^"]+\.gif)"/;
             const match = htmlContent.match(regex);
 
@@ -996,13 +970,11 @@ document.addEventListener('alpine:init', () => {
                     <img class="w-full rounded-lg mb-4" src="${gifUrl}" alt="Embedded GIF">
                 `;
             }
-            return null; // Not a .gif link
+            return null; 
         },
         
-        // *** NEW: STREAMABLE EMBED FUNCTION ***
         getStreamableEmbed(htmlContent) {
             if (!htmlContent) return null;
-            // Look for a streamable.com link
             const regex = /href="(?:https?:\/\/)?(?:www\.)?streamable\.com\/([a-zA-Z0-9]+)"/;
             const match = htmlContent.match(regex);
             
@@ -1018,13 +990,11 @@ document.addEventListener('alpine:init', () => {
                     </div>
                 `;
             }
-            return null; // Not a Streamable link
+            return null; 
         },
 
-        // *** NEW: GFYCAT EMBED FUNCTION ***
         getGfycatEmbed(htmlContent) {
             if (!htmlContent) return null;
-            // Look for a gfycat.com link
             const regex = /href="(?:https?:\/\/)?gfycat\.com\/([a-zA-Z0-9]+)"/;
             const match = htmlContent.match(regex);
             
@@ -1040,19 +1010,16 @@ document.addEventListener('alpine:init', () => {
                     </div>
                 `;
             }
-            return null; // Not a Gfycat link
+            return null; 
         },
 
-        // TWITCH CLIP EMBED FUNCTION
         getTwitchClipEmbed(htmlContent) {
             if (!htmlContent) return null;
-            // Look for a clips.twitch.tv link
             const regex = /href="(?:https?:\/\/)?(?:www\.)?clips\.twitch\.tv\/([a-zA-Z0-9_-]+)"/;
             const match = htmlContent.match(regex);
             
             if (match && match[1]) {
                 const clipId = match[1];
-                // Twitch requires the parent domain for the embed to work
                 const parentDomain = window.location.hostname;
                 
                 return `
@@ -1066,13 +1033,11 @@ document.addEventListener('alpine:init', () => {
                     </div>
                 `;
             }
-            return null; // Not a Twitch clip
+            return null; 
         },
 
         copyToClipboard(link, id) {
             try {
-                // Use execCommand as a fallback for clipboard
-                // This is more reliable inside iframes
                 const ta = document.createElement('textarea');
                 ta.value = link;
                 document.body.appendChild(ta);
@@ -1093,12 +1058,10 @@ document.addEventListener('alpine:init', () => {
                     url: article.link
                 });
             } else {
-                // Fallback to copy for cards
                 this.copyToClipboard(article.link, article.id);
             }
         },
         
-        // --- API Helper (DRY) ---
         async apiRequest(method, url, body = null) {
             const options = {
                 method,
@@ -1116,16 +1079,14 @@ document.addEventListener('alpine:init', () => {
                     const errorData = await response.json().catch(() => ({error: `Error: ${response.status}`}));
                     return { error: errorData.error || `Error: ${response.status}` };
                 }
-                // Handle 204 No Content
                 if (response.status === 204) {
                     return { success: true };
                 }
-                // Handle JSON responses
                 if (response.headers.get('content-type')?.includes('application/json')) {
                     const data = await response.json();
                     return data;
                 }
-                return { success: true }; // For non-json success (like DELETE)
+                return { success: true }; 
             } catch (error) {
                 return { error: error.message };
             }
@@ -1133,7 +1094,6 @@ document.addEventListener('alpine:init', () => {
         
         async apiPost(url, body = null) {
             const data = await this.apiRequest('POST', url, body);
-            // On any successful POST, reload app data (categories, feeds, etc)
             if (data && !data.error) {
                 await this.fetchAppData();
             }

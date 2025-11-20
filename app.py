@@ -466,6 +466,25 @@ def add_feed():
             url = f'https://lemmy.world/feeds/c/{lemmy_match.group(1)}.xml'
     except Exception: pass
 
+    # Behance
+    try:
+        if 'behance.net' in url and 'feeds' not in url:
+            behance_match = re.match(r'(?:https?:\/\/)?(?:www\.)?behance\.net\/([^\/\?]+)', url, re.IGNORECASE)
+            if behance_match:
+                url = f'https://www.behance.net/feeds/user?username={behance_match.group(1)}'
+    except Exception: pass
+
+    # DeviantArt
+    try:
+        if 'deviantart.com' in url and 'backend.deviantart.com' not in url:
+            # Matches profile URLs e.g. deviantart.com/username
+            da_match = re.match(r'(?:https?:\/\/)?(?:www\.)?deviantart\.com\/([^\/\?]+)', url, re.IGNORECASE)
+            if da_match:
+                username = da_match.group(1)
+                # q=by:{username} sort:time meta:all
+                url = f'https://backend.deviantart.com/rss.xml?type=deviation&q=by%3A{username}+sort%3Atime+meta%3Aall'
+    except Exception: pass
+
     # Ensure Category
     target_category = Category.query.get(category_id) if category_id else None
     if not target_category:

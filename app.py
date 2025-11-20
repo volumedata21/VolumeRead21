@@ -234,6 +234,12 @@ def _update_articles_for_feed(feed_instance, feed_data):
             if hi_res_url == image_url_found:
                 hi_res_url = re.sub(r'\/(\d+x|236x)\/', '/736x/', image_url_found)
             image_url_found = hi_res_url if hi_res_url != image_url_found else image_url_found
+
+        # Behance Hi-Res Fix
+        if image_url_found and 'behance.net' in image_url_found:
+            # Behance feeds usually give /projects/404/ (404px width)
+            # We try to upgrade to /projects/max_1200/ for better quality
+            image_url_found = image_url_found.replace('/projects/404/', '/projects/max_1200/')
         
         # Author Logic
         author_name = clean_text(entry.get('author', ''), strip_html_tags=True)
@@ -343,6 +349,26 @@ def get_articles():
         feed = Feed.query.get(view_id)
         if feed and ('reddit.com' in feed.url or 'lemmy.world' in feed.url):
             is_reddit_source = True
+    
+    # --- FIX: Added Missing Category View Logic ---
+    elif view_type == 'category' and view_id:
+        query = query.join(Feed).filter(Feed.category_id == view_id)
+
+    # --- FIX: Added Missing Custom Stream View Logic ---
+    elif view_type == 'custom_stream' and view_id:
+        query = query.join(Feed).join(custom_stream_feeds).filter(custom_stream_feeds.c.custom_stream_id == view_id)
+
+    # --- FIX: Added Missing Favorites View Logic ---
+    elif view_type == 'favorites':
+        query = query.filter(Article.is_favorite == True)
+
+    # --- FIX: Added Missing Read Later View Logic ---
+    elif view_type == 'readLater':
+        query = query.filter(Article.is_read_later == True)
+
+    # --- FIX: Added Missing Author View Logic ---
+    elif view_type == 'author' and author_name:
+        query = query.filter(Article.author == author_name)
         
     # --- NEW: Sites View (Everything except Videos and Threads) ---
     elif view_type == 'sites':

@@ -76,6 +76,11 @@ document.addEventListener('alpine:init', () => {
         editModalExcludeAll: false,
         editModalFeedStates: {},
 
+        // --- Settings/Import/Export State (NEW) ---
+        isSettingsModalOpen: false,
+        importStatus: '', // 'uploading', 'success', 'error'
+        importMessage: '',
+
         // --- Init Function ---
         async init() {
             this.isRefreshing = true;
@@ -199,7 +204,6 @@ document.addEventListener('alpine:init', () => {
             if (this.currentView.type === 'readLater') return 'Read Later';
             if (this.currentView.type === 'videos') return 'Videos';
             if (this.currentView.type === 'threads') return 'Threads';
-            // *** NEW: Sites Title ***
             if (this.currentView.type === 'sites') return 'Sites';
             
             if (this.currentView.type === 'feed') {
@@ -530,6 +534,56 @@ document.addEventListener('alpine:init', () => {
             }
         },
 
+        // --- Settings & Import/Export ---
+        openSettings() {
+            this.isSettingsModalOpen = true;
+            this.importStatus = '';
+            this.importMessage = '';
+        },
+        
+        exportFeeds() {
+            // Trigger browser download
+            window.location.href = '/api/export_opml';
+        },
+        
+        async importFeeds(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            this.importStatus = 'uploading';
+            this.importMessage = 'Importing feeds...';
+            
+            const formData = new FormData();
+            formData.append('file', file);
+            
+            try {
+                const response = await fetch('/api/import_opml', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    this.importStatus = 'success';
+                    this.importMessage = data.message;
+                    // Refresh app data to show new feeds
+                    await this.fetchAppData();
+                    // Also trigger a content refresh in background
+                    this.refreshAllFeeds(true);
+                } else {
+                    this.importStatus = 'error';
+                    this.importMessage = data.error || 'Import failed';
+                }
+            } catch (e) {
+                this.importStatus = 'error';
+                this.importMessage = 'Network error during import';
+            }
+            
+            // Clear input so same file can be selected again if needed
+            event.target.value = '';
+        },
+
         // --- API: Feed Management ---
         async addFeed() {
             this.feedError = '';
@@ -631,9 +685,10 @@ document.addEventListener('alpine:init', () => {
             
             // *** UPDATED: Pre-calculate embed HTML ***
             this.modalEmbedHtml = this.getYouTubeEmbed(article.link) || 
-                                  this.getTikTokEmbed(article.link) || // Added TikTok
-                                  this.getVimeoEmbed(article.link) ||  // Added Vimeo
-                                  this.getDailymotionEmbed(article.link) || // Added Dailymotion
+                                  this.getTikTokEmbed(article.link) || 
+                                  // REDDIT REMOVED
+                                  this.getVimeoEmbed(article.link) || 
+                                  this.getDailymotionEmbed(article.link) || 
                                   this.getRedgifsEmbed(article.full_content) || 
                                   this.getImgurEmbed(article.full_content) || 
                                   this.getStreamableEmbed(article.full_content) || 
@@ -835,7 +890,7 @@ document.addEventListener('alpine:init', () => {
             }
             return null;
         },
-
+        
         // *** NEW: VIMEO EMBED FUNCTION ***
         getVimeoEmbed(link) {
             if (!link) return null;

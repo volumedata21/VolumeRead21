@@ -3,12 +3,13 @@ import re
 import html
 import datetime
 import requests
+import xml.etree.ElementTree as ET
 from urllib.parse import urljoin, urlencode, quote
 from concurrent.futures import ThreadPoolExecutor
 
 import feedparser
 from bs4 import BeautifulSoup
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, Response, make_response
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import or_
 from sqlalchemy.orm import joinedload
@@ -787,6 +788,125 @@ def toggle_bookmark(article_id):
     article.is_read_later = not article.is_read_later
     db.session.commit()
     return jsonify({'is_read_later': article.is_read_later})
+
+# *** NEW: OPML Export Route ***
+@app.route('/api/export_opml')
+def export_opml():
+    categories = Category.query.order_by(Category.name).all()
+    
+    # Build OPML XML structure
+    root = ET.Element('opml', version="1.0")
+    head = ET.SubElement(root, 'head')
+    ET.SubElement(head, 'title').text = 'VolumeRead21 Feeds Export'
+    ET.SubElement(head, 'dateCreated').text = datetime.datetime.now().strftime("%a, %d %b %Y %H:%M:%S GMT")
+    
+    body = ET.SubElement(root, 'body')
+    
+    # Group feeds by category
+    for category in categories:
+        # Create outline for category
+        cat_outline = ET.SubElement(body, 'outline', text=category.name, title=category.name)
+        
+        feeds = category.feeds.all()
+        if not feeds:
+            continue
+            
+        for feed in feeds:
+            # Create outline for feed
+            ET.SubElement(cat_outline, 'outline', 
+                          type="rss", 
+                          text=feed.title, 
+                          title=feed.title, 
+                          xmlUrl=feed.url, 
+                          htmlUrl=feed.url) # htmlUrl usually main site, but feed url is safe fallback
+
+    # Generate XML string
+    xml_str = '<?xml version="1.0" encoding="UTF-8"?>\n' + ET.tostring(root, encoding='unicode')
+    
+    response = make_response(xml_str)
+    response.headers["Content-Disposition"] = "attachment; filename=volumeread21_feeds.opml"
+    response.headers["Content-Type"] = "application/xml"
+    return response
+
+# *** NEW: OPML Import Route ***
+@app.route('/api/import_opml', methods=['POST'])
+def import_opml():
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file uploaded'}), 400
+        
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({'error': 'No file selected'}), 400
+
+    try:
+        tree = ET.parse(file)
+        root = tree.getroot()
+        body = root.find('body')
+        
+        added_feeds = 0
+        added_categories = 0
+        
+        # Helper to process an outline element
+        def process_outline(outline, current_category_id=None):
+            nonlocal added_feeds, added_categories
+            
+            text = outline.get('text') or outline.get('title') or 'Untitled'
+            xml_url = outline.get('xmlUrl')
+            type_attr = outline.get('type')
+
+            # Case 1: It's a Feed (has xmlUrl)
+            if xml_url:
+                # Check if exists
+                if not Feed.query.filter_by(url=xml_url).first():
+                    # Ensure category exists (use current or Default)
+                    target_cat_id = current_category_id
+                    if not target_cat_id:
+                        uncat = Category.query.filter_by(name='Uncategorized').first()
+                        if not uncat:
+                            uncat = Category(name='Uncategorized')
+                            db.session.add(uncat)
+                            db.session.commit()
+                        target_cat_id = uncat.id
+                    
+                    new_feed = Feed(title=text, url=xml_url, category_id=target_cat_id)
+                    db.session.add(new_feed)
+                    added_feeds += 1
+
+            # Case 2: It's a Category (no xmlUrl, has children)
+            elif list(outline): # has children
+                # Check/Create Category
+                category = Category.query.filter_by(name=text).first()
+                if not category:
+                    category = Category(name=text)
+                    db.session.add(category)
+                    db.session.commit() # Commit to get ID
+                    added_categories += 1
+                
+                # Recursively process children
+                for child in outline:
+                    process_outline(child, category.id)
+
+        # Start processing from body
+        if body is not None:
+            for outline in body:
+                process_outline(outline)
+        
+        db.session.commit()
+        
+        # Trigger a background refresh for the new feeds (optional, but good UX)
+        # For simplicity, we just return success and let the frontend trigger refresh logic if needed
+        
+        return jsonify({
+            'success': True, 
+            'message': f'Successfully imported {added_feeds} feeds and {added_categories} categories.'
+        })
+
+    except ET.ParseError:
+        return jsonify({'error': 'Invalid OPML file format'}), 400
+    except Exception as e:
+        print(f"Import Error: {e}")
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
 
 # --- Main Execution ---
 

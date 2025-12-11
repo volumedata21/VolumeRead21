@@ -1,28 +1,24 @@
 <!DOCTYPE html>
 <html lang="en" class="dark">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>VolumeRead21</title>
 
     <script src="https://cdn.tailwindcss.com?plugins=forms,line-clamp,typography,aspect-ratio"></script>
-    
-    <!-- *** FIX: Added ?v=4 to force browser to reload new JS *** -->
-    <script src="{{ url_for('static', filename='js/app.js') }}?v=4" defer></script>
+    <script src="{{ url_for('static', filename='js/app.js') }}?v=5" defer></script>
     <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
-    
-    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
 
-    <!-- Favicons -->
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
     <link rel="shortcut icon" href="{{ url_for('static', filename='favicon/favicon.ico') }}">
     <link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('static', filename='favicon/favicon.png') }}">
-    <link rel="apple-touch-icon" sizes="180x180" href="{{ url_for('static', filename='favicon/apple-touch-icon.png') }}">
-    <link rel="icon" type="image/png" sizes="192x192" href="{{ url_for('static', filename='favicon/android-chrome-192x192.png') }}">
-
-    <!-- Styles -->
+    <link rel="apple-touch-icon" sizes="180x180"
+        href="{{ url_for('static', filename='favicon/apple-touch-icon.png') }}">
+    <link rel="icon" type="image/png" sizes="192x192"
+        href="{{ url_for('static', filename='favicon/android-chrome-192x192.png') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 
-    <!-- *** NEW: Relative Time Formatter *** -->
     <script>
         function formatRelativeTime(dateString) {
             if (!dateString) return '';
@@ -30,76 +26,65 @@
             const now = new Date();
             const seconds = Math.floor((now - date) / 1000);
 
-            let interval = seconds / 31536000; // years
-            if (interval > 1) {
-                return Math.floor(interval) + "y ago";
-            }
-            interval = seconds / 2592000; // months
-            if (interval > 1) {
-                return Math.floor(interval) + "mo ago";
-            }
-            interval = seconds / 604800; // weeks
-            if (interval > 1) {
-                return Math.floor(interval) + "w ago";
-            }
-            interval = seconds / 86400; // days
-            if (interval > 1) {
-                return Math.floor(interval) + "d ago";
-            }
-            interval = seconds / 3600; // hours
-            if (interval > 1) {
-                return Math.floor(interval) + "h ago";
-            }
-            interval = seconds / 60; // minutes
-            if (interval > 1) {
-                return Math.floor(interval) + "m ago";
-            }
+            let interval = seconds / 31536000;
+            if (interval > 1) return Math.floor(interval) + "y ago";
+            interval = seconds / 2592000;
+            if (interval > 1) return Math.floor(interval) + "mo ago";
+            interval = seconds / 604800;
+            if (interval > 1) return Math.floor(interval) + "w ago";
+            interval = seconds / 86400;
+            if (interval > 1) return Math.floor(interval) + "d ago";
+            interval = seconds / 3600;
+            if (interval > 1) return Math.floor(interval) + "h ago";
+            interval = seconds / 60;
+            if (interval > 1) return Math.floor(interval) + "m ago";
             return Math.max(0, Math.floor(seconds)) + "s ago";
         }
     </script>
 </head>
-<body
-    class="bg-[var(--bg-darkest)] text-[var(--text-main)]"
-    x-data="rssApp"
-    x-init="init()"
-    :class="{ 'overflow-hidden': isMobileMenuOpen || isModalOpen || isAssignModalOpen || isEditModalOpen || isSettingsModalOpen }"
->
 
-    <!-- Mobile Menu Overlay -->
-    <div x-show="isMobileMenuOpen" @click="isMobileMenuOpen = false" x-transition:enter="transition-opacity ease-in-out duration-300" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100" x-transition:leave="transition-opacity ease-in-out duration-300" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0" class="fixed inset-0 z-30 bg-black/60 lg:hidden" x-cloak></div>
+<body class="bg-[var(--bg-darkest)] text-[var(--text-main)]" x-data="rssApp" x-init="init()"
+    :class="{ 'overflow-hidden': isMobileMenuOpen || isModalOpen || isAssignModalOpen || isEditModalOpen || isSettingsModalOpen }">
 
-    <!-- App Container -->
+    <div x-show="isMobileMenuOpen" @click="isMobileMenuOpen = false"
+        x-transition:enter="transition-opacity ease-in-out duration-300" x-transition:enter-start="opacity-0"
+        x-transition:enter-end="opacity-100" x-transition:leave="transition-opacity ease-in-out duration-300"
+        x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"
+        class="fixed inset-0 z-30 bg-black/60 lg:hidden" x-cloak></div>
+
     <div class="flex h-screen">
 
-        <!-- Sidebar Navigation -->
         <aside
             class="fixed inset-y-0 left-0 z-40 flex w-72 transform flex-col border-r border-[var(--divider-color)] bg-[var(--bg-medium)] transition-transform duration-300 ease-in-out lg:translate-x-0"
-            :class="{ '-translate-x-full': !isMobileMenuOpen, 'translate-x-0': isMobileMenuOpen }"
-            @dragover.prevent @drop.prevent="dragEndAll()" x-cloak>
+            :class="{ '-translate-x-full': !isMobileMenuOpen, 'translate-x-0': isMobileMenuOpen }" @dragover.prevent
+            @drop.prevent="dragEndAll()" x-cloak>
 
-            <!-- Sidebar Header -->
             <div class="flex h-16 shrink-0 items-center justify-between border-b border-[var(--divider-color)] px-4">
                 <a href="#" @click.prevent="setView('all'); searchQuery=''" class="flex items-center gap-3 group">
                     <i class="material-icons" style="font-size:28px;color:#DD3D2D;">rss_feed</i>
-                    <span class="text-lg font-semibold text-[var(--text-bright)] group-hover:text-[var(--text-main)]">VolumeRead21</span>
+                    <span
+                        class="text-lg font-semibold text-[var(--text-bright)] group-hover:text-[var(--text-main)]">VolumeRead21</span>
                 </a>
                 <div class="flex items-center gap-2">
-                    <!-- *** NEW: Settings Button *** -->
-                    <button type="button" class="p-2 text-[var(--text-secondary)] hover:text-[var(--text-bright)]" @click="openSettings()" title="Backup & Settings">
+                    <button type="button" class="p-2 text-[var(--text-secondary)] hover:text-[var(--text-bright)]"
+                        @click="openSettings()" title="Backup & Settings">
                         <i class="material-icons" style="font-size: 20px;">settings</i>
                     </button>
-                    <button type="button" class="-mr-2 p-2 text-[var(--text-secondary)] hover:text-[var(--text-bright)] lg:hidden" @click="isMobileMenuOpen = false">
+                    <button type="button"
+                        class="-mr-2 p-2 text-[var(--text-secondary)] hover:text-[var(--text-bright)] lg:hidden"
+                        @click="isMobileMenuOpen = false">
                         <i class="material-icons" style="font-size: 24px;">close</i>
                     </button>
                 </div>
             </div>
 
-            <!-- Add Feed Form -->
             <div class="p-4">
                 <form @submit.prevent="addFeed()">
                     <div class="relative">
-                        <input type="text" placeholder="Add feed URL..." x-model="newFeedUrl" class="w-full rounded-md border-[var(--divider-color)] bg-[var(--bg-darkest)] pr-10 text-sm text-[var(--text-bright)] placeholder-[var(--text-secondary)] focus:border-[var(--highlight-ring)] focus:ring-[var(--highlight-ring)]">
-                        <button type="submit" class="absolute inset-y-0 right-0 flex items-center pr-3 text-[var(--text-secondary)] hover:text-[var(--text-highlight)]">
+                        <input type="text" placeholder="Add feed URL..." x-model="newFeedUrl"
+                            class="w-full rounded-md border-[var(--divider-color)] bg-[var(--bg-darkest)] pr-10 text-sm text-[var(--text-bright)] placeholder-[var(--text-secondary)] focus:border-[var(--highlight-ring)] focus:ring-[var(--highlight-ring)]">
+                        <button type="submit"
+                            class="absolute inset-y-0 right-0 flex items-center pr-3 text-[var(--text-secondary)] hover:text-[var(--text-highlight)]">
                             <i class="material-icons" style="font-size: 20px;">add</i>
                         </button>
                     </div>
@@ -107,150 +92,169 @@
                 <p x-show="feedError" x-text="feedError" class="mt-2 text-xs text-red-500" x-cloak></p>
             </div>
 
-            <!-- Main Nav List -->
             <nav class="flex-1 space-y-1 overflow-y-auto px-4 pb-4">
-                 <a href="#" @click.prevent="setView('all')" class="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium hover:bg-[var(--bg-highlight)]/50" :class="currentView.type === 'all' ? 'main-nav-selected' : 'text-[var(--text-main)]'"><i class="material-icons" style="font-size:20px;">apps</i> All Feeds</a>
-                 
-                 <!-- *** NEW: Sites Link *** -->
-                 <a href="#" @click.prevent="setView('sites')" class="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium hover:bg-[var(--bg-highlight)]/50" :class="currentView.type === 'sites' ? 'main-nav-selected' : 'text-[var(--text-main)]'"><i class="material-icons" style="font-size:20px;">public</i> Sites</a>
-                 
-                 <a href="#" @click.prevent="setView('videos')" class="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium hover:bg-[var(--bg-highlight)]/50" :class="currentView.type === 'videos' ? 'main-nav-selected' : 'text-[var(--text-main)]'"><i class="material-icons" style="font-size:20px;">videocam</i> Videos</a>
-                 <a href="#" @click.prevent="setView('threads')" class="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium hover:bg-[var(--bg-highlight)]/50" :class="currentView.type === 'threads' ? 'main-nav-selected' : 'text-[var(--text-main)]'"><i class="material-icons" style="font-size:20px;">forum</i> Threads</a>
-                 
-                 <a href="#" @click.prevent="setView('favorites')" class="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium hover:bg-[var(--bg-highlight)]/50" :class="currentView.type === 'favorites' ? 'main-nav-selected' : 'text-[var(--text-main)]'"><i class="material-icons" style="font-size:20px;">star_outline</i> Favorites</a>
-                 <a href="#" @click.prevent="setView('readLater')" class="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium hover:bg-[var(--bg-highlight)]/50" :class="currentView.type === 'readLater' ? 'main-nav-selected' : 'text-[var(--text-main)]'"><i class="material-icons" style="font-size:20px;">bookmark_border</i> Read Later</a>
-                 <hr class="border-[var(--divider-color)] mx-4 my-2">
+                <a href="#" @click.prevent="setView('all')"
+                    class="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium hover:bg-[var(--bg-highlight)]/50"
+                    :class="currentView.type === 'all' ? 'main-nav-selected' : 'text-[var(--text-main)]'"><i
+                        class="material-icons" style="font-size:20px;">apps</i> All Feeds</a>
+                <a href="#" @click.prevent="setView('sites')"
+                    class="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium hover:bg-[var(--bg-highlight)]/50"
+                    :class="currentView.type === 'sites' ? 'main-nav-selected' : 'text-[var(--text-main)]'"><i
+                        class="material-icons" style="font-size:20px;">public</i> Sites</a>
+                <a href="#" @click.prevent="setView('videos')"
+                    class="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium hover:bg-[var(--bg-highlight)]/50"
+                    :class="currentView.type === 'videos' ? 'main-nav-selected' : 'text-[var(--text-main)]'"><i
+                        class="material-icons" style="font-size:20px;">videocam</i> Videos</a>
+                <a href="#" @click.prevent="setView('threads')"
+                    class="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium hover:bg-[var(--bg-highlight)]/50"
+                    :class="currentView.type === 'threads' ? 'main-nav-selected' : 'text-[var(--text-main)]'"><i
+                        class="material-icons" style="font-size:20px;">forum</i> Threads</a>
+                <a href="#" @click.prevent="setView('favorites')"
+                    class="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium hover:bg-[var(--bg-highlight)]/50"
+                    :class="currentView.type === 'favorites' ? 'main-nav-selected' : 'text-[var(--text-main)]'"><i
+                        class="material-icons" style="font-size:20px;">star_outline</i> Favorites</a>
+                <a href="#" @click.prevent="setView('readLater')"
+                    class="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium hover:bg-[var(--bg-highlight)]/50"
+                    :class="currentView.type === 'readLater' ? 'main-nav-selected' : 'text-[var(--text-main)]'"><i
+                        class="material-icons" style="font-size:20px;">bookmark_border</i> Read Later</a>
+                <hr class="border-[var(--divider-color)] mx-4 my-2">
 
-                <!-- Streams Section -->
                 <div class="pt-2" x-cloak>
-                    <!-- Collapsible Header -->
-                    <button @click="isStreamsSectionCollapsed = !isStreamsSectionCollapsed" class="flex w-full items-center justify-between rounded-md px-3 py-1 hover:bg-[var(--bg-darkest)]/50">
+                    <button @click="isStreamsSectionCollapsed = !isStreamsSectionCollapsed"
+                        class="flex w-full items-center justify-between rounded-md px-3 py-1 hover:bg-[var(--bg-darkest)]/50">
                         <h3 class="text-xs font-semibold uppercase text-[var(--text-secondary)]">Streams</h3>
-                        <i class="material-icons transform transition-transform text-sm text-[var(--text-secondary)]" :class="{ 'rotate-180': isStreamsSectionCollapsed }">expand_more</i>
+                        <i class="material-icons transform transition-transform text-sm text-[var(--text-secondary)]"
+                            :class="{ 'rotate-180': isStreamsSectionCollapsed }">expand_more</i>
                     </button>
-                    <!-- Content (now collapsible) -->
                     <div class="mt-1 space-y-1" x-show="!isStreamsSectionCollapsed" x-transition>
                         <template x-for="stream in appData.customStreams" :key="stream.id">
                             <div>
-                                <div
-                                    class="group flex items-center rounded-md pr-2 text-[var(--text-main)] hover:bg-[var(--bg-darkest)]/50"
+                                <div class="group flex items-center rounded-md pr-2 text-[var(--text-main)] hover:bg-[var(--bg-darkest)]/50"
                                     @dragover.prevent="dragOverStreamId = stream.id"
-                                    @dragleave="dragOverStreamId = null"
-                                    @drop.prevent="dropFeedOnStream(stream.id)"
-                                    :data-stream-id="stream.id"
-                                    :class="{
+                                    @dragleave="dragOverStreamId = null" @drop.prevent="dropFeedOnStream(stream.id)"
+                                    :data-stream-id="stream.id" :class="{
                                         'bg-[var(--highlight-bg)] text-[var(--highlight-text)]': currentView.type === 'custom_stream' && currentView.id === stream.id,
                                         'bg-[var(--bg-darkest)]/50 outline-dashed outline-1 outline-[var(--text-highlight)]': dragOverStreamId === stream.id && draggingFeedId
                                     }">
                                     <button @click="toggleStream(stream.id)" class="p-1">
-                                        <i class="material-icons transform transition-transform text-sm" :class="{ 'rotate-90': openStreamIDs.includes(stream.id) }">chevron_right</i>
+                                        <i class="material-icons transform transition-transform text-sm"
+                                            :class="{ 'rotate-90': openStreamIDs.includes(stream.id) }">chevron_right</i>
                                     </button>
-                                    <button @click="setView('custom_stream', stream.id)" class="flex flex-1 items-center gap-2 px-1 py-1 text-sm font-medium text-left truncate">
+                                    <button @click="setView('custom_stream', stream.id)"
+                                        class="flex flex-1 items-center gap-2 px-1 py-1 text-sm font-medium text-left truncate">
                                         <i class="material-icons" style="font-size: 18px;">view_stream</i>
                                         <span x-text="stream.name"></span>
                                     </button>
-                                    <!-- *** NEW: Edit Stream Button *** -->
-                                    <button @click="openEditModal('stream', stream.id, stream.name)" class="p-2 ml-auto lg:opacity-0 lg:group-hover:opacity-100 focus:opacity-100 text-[var(--text-secondary)] hover:text-[var(--text-highlight)]" title="Edit Stream">
+                                    <button @click="openEditModal('stream', stream.id, stream.name)"
+                                        class="p-2 ml-auto lg:opacity-0 lg:group-hover:opacity-100 focus:opacity-100 text-[var(--text-secondary)] hover:text-[var(--text-highlight)]"
+                                        title="Edit Stream">
                                         <span class="material-icons" style="font-size: 16px;">edit</span>
                                     </button>
-                                    <button @click="softDeleteStream(stream.id)" class="p-2 lg:opacity-0 lg:group-hover:opacity-100 focus:opacity-100 text-[var(--text-secondary)] hover:text-red-500" title="Remove Stream">
+                                    <button @click="softDeleteStream(stream.id)"
+                                        class="p-2 lg:opacity-0 lg:group-hover:opacity-100 focus:opacity-100 text-[var(--text-secondary)] hover:text-red-500"
+                                        title="Remove Stream">
                                         <span class="material-icons" style="font-size: 16px;">delete</span>
                                     </button>
                                 </div>
-                                <div class="mt-1 space-y-1 pl-6" x-show="openStreamIDs.includes(stream.id)" x-transition>
-                                    <template x-for="feed in getFeedsInStream(stream.id)" :key="'s-'+stream.id+'-f-'+feed.id">
-                                        <div class="group flex items-center rounded-md pr-2 text-[var(--text-secondary)] hover:bg-[var(--bg-darkest)]/30">
-                                             <a href="#" @click.prevent="setView('feed', feed.id)" class="flex flex-1 items-center gap-2 truncate py-1 pl-4 pr-2 text-sm">
-                                                 <i class="material-icons" style="font-size: 16px;">rss_feed</i>
-                                                 <span x-text="feed.title"></span>
-                                             </a>
-                                             <button @click="removeFeedFromStream(stream.id, feed.id)" class="p-2 lg:opacity-0 lg:group-hover:opacity-100 hover:text-red-500 focus:opacity-100" title="Remove feed from this stream">
-                                                 <span class="material-icons" style="font-size: 16px;">close</span>
-                                             </button>
+                                <div class="mt-1 space-y-1 pl-6" x-show="openStreamIDs.includes(stream.id)"
+                                    x-transition>
+                                    <template x-for="feed in getFeedsInStream(stream.id)"
+                                        :key="'s-'+stream.id+'-f-'+feed.id">
+                                        <div
+                                            class="group flex items-center rounded-md pr-2 text-[var(--text-secondary)] hover:bg-[var(--bg-darkest)]/30">
+                                            <a href="#" @click.prevent="setView('feed', feed.id)"
+                                                class="flex flex-1 items-center gap-2 truncate py-1 pl-4 pr-2 text-sm">
+                                                <i class="material-icons" style="font-size: 16px;">rss_feed</i>
+                                                <span x-text="feed.title"></span>
+                                            </a>
+                                            <button @click="removeFeedFromStream(stream.id, feed.id)"
+                                                class="p-2 lg:opacity-0 lg:group-hover:opacity-100 hover:text-red-500 focus:opacity-100"
+                                                title="Remove feed from this stream">
+                                                <span class="material-icons" style="font-size: 16px;">close</span>
+                                            </button>
                                         </div>
                                     </template>
-                                     <p x-show="getFeedsInStream(stream.id).length === 0" class="pl-4 text-xs italic text-[var(--text-secondary)]/70">Drag feeds here</p>
+                                    <p x-show="getFeedsInStream(stream.id).length === 0"
+                                        class="pl-4 text-xs italic text-[var(--text-secondary)]/70">Drag feeds here</p>
                                 </div>
                             </div>
                         </template>
                     </div>
                 </div>
 
-                 <hr class="border-[var(--divider-color)] mx-4 my-2">
+                <hr class="border-[var(--divider-color)] mx-4 my-2">
 
-                <!-- Feeds Section -->
                 <div class="pt-2" x-cloak>
-                    <!-- Collapsible Header -->
-                    <button @click="isFeedsSectionCollapsed = !isFeedsSectionCollapsed" class="flex w-full items-center justify-between rounded-md px-3 py-1 hover:bg-[var(--bg-darkest)]/50">
+                    <button @click="isFeedsSectionCollapsed = !isFeedsSectionCollapsed"
+                        class="flex w-full items-center justify-between rounded-md px-3 py-1 hover:bg-[var(--bg-darkest)]/50">
                         <h3 class="text-xs font-semibold uppercase text-[var(--text-secondary)]">Feeds</h3>
-                        <i class="material-icons transform transition-transform text-sm text-[var(--text-secondary)]" :class="{ 'rotate-180': isFeedsSectionCollapsed }">expand_more</i>
+                        <i class="material-icons transform transition-transform text-sm text-[var(--text-secondary)]"
+                            :class="{ 'rotate-180': isFeedsSectionCollapsed }">expand_more</i>
                     </button>
-                    <!-- Content (now collapsible) -->
                     <div class="mt-1 space-y-1" x-show="!isFeedsSectionCollapsed" x-transition>
-                        <template x-for="category in appData.categories.sort((a, b) => a.name === 'Uncategorized' ? -1 : b.name === 'Uncategorized' ? 1 : a.name.localeCompare(b.name))" :key="category.id">
+                        <template
+                            x-for="category in appData.categories.sort((a, b) => a.name === 'Uncategorized' ? -1 : b.name === 'Uncategorized' ? 1 : a.name.localeCompare(b.name))"
+                            :key="category.id">
                             <div>
                                 <div class="group flex items-center rounded-md text-[var(--text-secondary)] hover:bg-[var(--bg-darkest)]/50"
-                                     :data-category-id="category.id"
-                                     :class="{ 'bg-[var(--highlight-bg)] !text-[var(--highlight-text)]': currentView.type === 'category' && currentView.id === category.id, 'bg-[var(--bg-darkest)]/50 outline-dashed outline-1 outline-[var(--text-highlight)]': dragOverCategoryId === category.id && draggingFeedId }"
-                                     @dragover.prevent="dragOverCategoryId = category.id"
-                                     @dragleave="dragOverCategoryId = null"
-                                     @drop.prevent="dropFeed(category.id)">
+                                    :data-category-id="category.id"
+                                    :class="{ 'bg-[var(--highlight-bg)] !text-[var(--highlight-text)]': currentView.type === 'category' && currentView.id === category.id, 'bg-[var(--bg-darkest)]/50 outline-dashed outline-1 outline-[var(--text-highlight)]': dragOverCategoryId === category.id && draggingFeedId }"
+                                    @dragover.prevent="dragOverCategoryId = category.id"
+                                    @dragleave="dragOverCategoryId = null" @drop.prevent="dropFeed(category.id)">
 
                                     <button @click="toggleCategory(category.id)" class="p-1">
-                                        <i class="material-icons transform transition-transform text-sm" :class="{ 'rotate-90': openCategoryIDs.includes(category.id) }">chevron_right</i>
+                                        <i class="material-icons transform transition-transform text-sm"
+                                            :class="{ 'rotate-90': openCategoryIDs.includes(category.id) }">chevron_right</i>
                                     </button>
-                                    <button @click="setView('category', category.id)" class="flex-1 px-1 py-1 text-xs font-semibold uppercase text-left truncate"
-                                            :class="{'text-[var(--text-highlight)]': currentView.type === 'category' && currentView.id === category.id, 'text-[var(--text-secondary)]': currentView.type !== 'category' || currentView.id !== category.id}">
+                                    <button @click="setView('category', category.id)"
+                                        class="flex-1 px-1 py-1 text-xs font-semibold uppercase text-left truncate"
+                                        :class="{'text-[var(--text-highlight)]': currentView.type === 'category' && currentView.id === category.id, 'text-[var(--text-secondary)]': currentView.type !== 'category' || currentView.id !== category.id}">
                                         <span x-text="category.name"></span>
                                     </button>
-                                    <div class="flex items-center ml-auto pr-2" x-show="category.name !== 'Uncategorized'">
-                                        <!-- *** UPDATED: Call openEditModal *** -->
-                                        <button @click="openEditModal('category', category.id, category.name)" class="p-2 lg:opacity-0 lg:group-hover:opacity-100 focus:opacity-100 text-[var(--text-secondary)] hover:text-[var(--text-highlight)]" title="Edit category">
+                                    <div class="flex items-center ml-auto pr-2"
+                                        x-show="category.name !== 'Uncategorized'">
+                                        <button @click="openEditModal('category', category.id, category.name)"
+                                            class="p-2 lg:opacity-0 lg:group-hover:opacity-100 focus:opacity-100 text-[var(--text-secondary)] hover:text-[var(--text-highlight)]"
+                                            title="Edit category">
                                             <span class="material-icons" style="font-size: 16px;">edit</span>
                                         </button>
-                                        <button @click="deleteCategory(category.id)" class="p-2 lg:opacity-0 lg:group-hover:opacity-100 focus:opacity-100 text-[var(--text-secondary)] hover:text-red-500" title="Delete category">
+                                        <button @click="deleteCategory(category.id)"
+                                            class="p-2 lg:opacity-0 lg:group-hover:opacity-100 focus:opacity-100 text-[var(--text-secondary)] hover:text-red-500"
+                                            title="Delete category">
                                             <span class="material-icons" style="font-size: 16px;">delete</span>
                                         </button>
                                     </div>
                                 </div>
-                                <div class="mt-1 space-y-1 rounded" x-show="openCategoryIDs.includes(category.id)" x-transition
-                                     :data-category-id="category.id"
-                                     @dragover.prevent="dragOverCategoryId = category.id"
-                                     @dragleave="dragOverCategoryId = null"
-                                     @drop.prevent="dropFeed(category.id)"
-                                     :class="{ 'bg-[var(--bg-darkest)]/30 outline-dashed outline-1 outline-[var(--text-highlight)]': dragOverCategoryId === category.id && draggingFeedId }">
+                                <div class="mt-1 space-y-1 rounded" x-show="openCategoryIDs.includes(category.id)"
+                                    x-transition :data-category-id="category.id"
+                                    @dragover.prevent="dragOverCategoryId = category.id"
+                                    @dragleave="dragOverCategoryId = null" @drop.prevent="dropFeed(category.id)"
+                                    :class="{ 'bg-[var(--bg-darkest)]/30 outline-dashed outline-1 outline-[var(--text-highlight)]': dragOverCategoryId === category.id && draggingFeedId }">
                                     <template x-for="feed in getFeedsInCategory(category.id)" :key="feed.id">
-                                        <!-- Feed Item Row -->
                                         <div class="group flex items-center rounded-md text-[var(--text-main)] hover:bg-[var(--bg-darkest)]/30"
-                                             :class="{ 'bg-[var(--highlight-bg)] text-[var(--highlight-text)]': currentView.type === 'feed' && currentView.id === feed.id, 'opacity-70': selectedFeedIds.length > 0 && !selectedFeedIds.includes(feed.id) }">
-                                            
-                                            <!-- Checkbox (CLEANED) -->
-                                            <input type="checkbox" :value="feed.id" x-model="selectedFeedIds"
-                                                   @click.stop 
-                                                   class="ml-2 mr-1 h-4 w-4 rounded border-[var(--divider-color)] bg-[var(--bg-darkest)] text-[var(--text-highlight)] focus:ring-[var(--highlight-ring)]">
+                                            :class="{ 'bg-[var(--highlight-bg)] text-[var(--highlight-text)]': currentView.type === 'feed' && currentView.id === feed.id, 'opacity-70': selectedFeedIds.length > 0 && !selectedFeedIds.includes(feed.id) }">
 
-                                            <!-- Draggable Link -->
-                                            <a href="#" @click.prevent="setView('feed', feed.id)"
-                                               draggable="true"
-                                               @dragstart="dragStartFeed(feed.id, $event)"
-                                               @dragend="dragEndAll()"
-                                               @touchstart="handleTouchStart(feed.id, $event)"
-                                               @contextmenu.prevent
-                                               class="flex-1 truncate py-1.5 pl-2 pr-2 text-sm font-medium"
-                                               :class="{ 'dragging': draggingFeedId === feed.id, 'cursor-default': selectedFeedIds.length > 0 }"
-                                               :draggable="selectedFeedIds.length === 0"
-                                               x-text="feed.title">
+                                            <input type="checkbox" :value="feed.id" x-model="selectedFeedIds"
+                                                @click.stop
+                                                class="ml-2 mr-1 h-4 w-4 rounded border-[var(--divider-color)] bg-[var(--bg-darkest)] text-[var(--text-highlight)] focus:ring-[var(--highlight-ring)]">
+
+                                            <a href="#" @click.prevent="setView('feed', feed.id)" draggable="true"
+                                                @dragstart="dragStartFeed(feed.id, $event)" @dragend="dragEndAll()"
+                                                @touchstart="handleTouchStart(feed.id, $event)" @contextmenu.prevent
+                                                class="flex-1 truncate py-1.5 pl-2 pr-2 text-sm font-medium"
+                                                :class="{ 'dragging': draggingFeedId === feed.id, 'cursor-default': selectedFeedIds.length > 0 }"
+                                                :draggable="selectedFeedIds.length === 0" x-text="feed.title">
                                             </a>
-                                            
-                                            <!-- *** UPDATED: Call openEditModal *** -->
+
                                             <button @click="openEditModal('feed', feed.id, feed.title)"
-                                                    class="p-2 lg:opacity-0 lg:group-hover:opacity-100 focus:opacity-100 text-[var(--text-secondary)] hover:text-[var(--text-highlight)]" title="Edit Feed">
+                                                class="p-2 lg:opacity-0 lg:group-hover:opacity-100 focus:opacity-100 text-[var(--text-secondary)] hover:text-[var(--text-highlight)]"
+                                                title="Edit Feed">
                                                 <span class="material-icons" style="font-size: 18px;">edit</span>
                                             </button>
-                                            
-                                            <!-- Delete Button -->
+
                                             <button @click="softDeleteFeed(feed.id)"
-                                                    class="p-2 lg:opacity-0 lg:group-hover:opacity-100 focus:opacity-100 text-[var(--text-secondary)] hover:text-red-500" title="Remove Feed">
+                                                class="p-2 lg:opacity-0 lg:group-hover:opacity-100 focus:opacity-100 text-[var(--text-secondary)] hover:text-red-500"
+                                                title="Remove Feed">
                                                 <span class="material-icons" style="font-size: 18px;">delete</span>
                                             </button>
                                         </div>
@@ -261,277 +265,328 @@
                     </div>
                 </div>
 
-                <!-- Removed Feeds Section -->
                 <template x-if="appData.removedFeeds && appData.removedFeeds.length > 0">
                     <div class="pt-4" x-cloak>
-                         <hr class="border-[var(--divider-color)] mx-4 my-2">
-                         <h3 class="px-3 text-xs font-semibold uppercase text-[var(--text-secondary)]">Removed Feeds</h3>
-                         <div class="mt-1 space-y-1">
+                        <hr class="border-[var(--divider-color)] mx-4 my-2">
+                        <h3 class="px-3 text-xs font-semibold uppercase text-[var(--text-secondary)]">Removed Feeds</h3>
+                        <div class="mt-1 space-y-1">
                             <template x-for="feed in appData.removedFeeds" :key="feed.id">
-                                <div class="group flex items-center rounded-md pr-2 text-[var(--text-secondary)] hover:bg-[var(--bg-darkest)]/50">
-                                    <span class="flex-1 truncate py-1.5 pl-4 pr-2 text-sm italic" x-text="feed.title"></span>
-                                    <button @click="restoreFeed(feed.id)" class="p-2 lg:opacity-0 lg:group-hover:opacity-100 focus:opacity-100 hover:text-[var(--text-highlight)]" title="Restore Feed">
+                                <div
+                                    class="group flex items-center rounded-md pr-2 text-[var(--text-secondary)] hover:bg-[var(--bg-darkest)]/50">
+                                    <span class="flex-1 truncate py-1.5 pl-4 pr-2 text-sm italic"
+                                        x-text="feed.title"></span>
+                                    <button @click="restoreFeed(feed.id)"
+                                        class="p-2 lg:opacity-0 lg:group-hover:opacity-100 focus:opacity-100 hover:text-[var(--text-highlight)]"
+                                        title="Restore Feed">
                                         <span class="material-icons" style="font-size: 18px;">restore</span>
                                     </button>
-                                    <button @click="confirmPermanentDeleteFeed(feed.id)" class="p-2 lg:opacity-0 lg:group-hover:opacity-100 focus:opacity-100 hover:text-red-500" title="Delete Permanently">
+                                    <button @click="confirmPermanentDeleteFeed(feed.id)"
+                                        class="p-2 lg:opacity-0 lg:group-hover:opacity-100 focus:opacity-100 hover:text-red-500"
+                                        title="Delete Permanently">
                                         <span class="material-icons" style="font-size: 18px;">delete_forever</span>
                                     </button>
                                 </div>
                             </template>
-                         </div>
+                        </div>
                     </div>
                 </template>
 
-                <!-- Removed Streams Section -->
                 <template x-if="appData.removedStreams && appData.removedStreams.length > 0">
                     <div class="pt-4" x-cloak>
-                         <hr class="border-[var(--divider-color)] mx-4 my-2">
-                         <h3 class="px-3 text-xs font-semibold uppercase text-[var(--text-secondary)]">Removed Streams</h3>
-                         <div class="mt-1 space-y-1">
+                        <hr class="border-[var(--divider-color)] mx-4 my-2">
+                        <h3 class="px-3 text-xs font-semibold uppercase text-[var(--text-secondary)]">Removed Streams
+                        </h3>
+                        <div class="mt-1 space-y-1">
                             <template x-for="stream in appData.removedStreams" :key="stream.id">
-                                <div class="group flex items-center rounded-md pr-2 text-[var(--text-secondary)] hover:bg-[var(--bg-darkest)]/50">
-                                    <span class="flex-1 truncate py-1.5 pl-4 pr-2 text-sm italic" x-text="stream.name"></span>
-                                    <button @click="restoreStream(stream.id)" class="p-2 lg:opacity-0 lg:group-hover:opacity-100 focus:opacity-100 hover:text-[var(--text-highlight)]" title="Restore Stream">
+                                <div
+                                    class="group flex items-center rounded-md pr-2 text-[var(--text-secondary)] hover:bg-[var(--bg-darkest)]/50">
+                                    <span class="flex-1 truncate py-1.5 pl-4 pr-2 text-sm italic"
+                                        x-text="stream.name"></span>
+                                    <button @click="restoreStream(stream.id)"
+                                        class="p-2 lg:opacity-0 lg:group-hover:opacity-100 focus:opacity-100 hover:text-[var(--text-highlight)]"
+                                        title="Restore Stream">
                                         <span class="material-icons" style="font-size: 18px;">restore</span>
                                     </button>
-                                    <button @click="confirmPermanentDeleteStream(stream.id)" class="p-2 lg:opacity-0 lg:group-hover:opacity-100 focus:opacity-100 hover:text-red-500" title="Delete Permanently">
+                                    <button @click="confirmPermanentDeleteStream(stream.id)"
+                                        class="p-2 lg:opacity-0 lg:group-hover:opacity-100 focus:opacity-100 hover:text-red-500"
+                                        title="Delete Permanently">
                                         <span class="material-icons" style="font-size: 18px;">delete_forever</span>
                                     </button>
                                 </div>
                             </template>
-                         </div>
+                        </div>
                     </div>
                 </template>
             </nav>
 
-            <!-- Sidebar Footer Forms -->
             <div class="mt-auto border-t border-[var(--divider-color)] p-4">
-                
-                <!-- Bulk Action Bar -->
+
                 <div x-show="selectedFeedIds.length > 0" x-transition
-                     class="mb-4 rounded-lg border border-[var(--divider-color)] bg-[var(--bg-darkest)] p-3" x-cloak>
+                    class="mb-4 rounded-lg border border-[var(--divider-color)] bg-[var(--bg-darkest)] p-3" x-cloak>
                     <p class="text-sm text-[var(--text-bright)]">
                         <span x-text="selectedFeedIds.length"></span> feeds selected
                     </p>
                     <div class="mt-2 flex items-center gap-2">
                         <button @click="openAssignModal()"
-                                class="flex-1 rounded-md bg-[var(--bg-highlight)] px-3 py-1.5 text-sm font-medium text-[var(--text-bright)] hover:bg-[var(--bg-highlight-hover)]">
+                            class="flex-1 rounded-md bg-[var(--bg-highlight)] px-3 py-1.5 text-sm font-medium text-[var(--text-bright)] hover:bg-[var(--bg-highlight-hover)]">
                             Assign...
                         </button>
                         <button @click="clearSelection()"
-                                class="flex-shrink-0 rounded-md bg-[var(--bg-medium)] px-3 py-1.5 text-sm font-medium text-[var(--text-secondary)] hover:bg-[var(--bg-darkest)] hover:text-[var(--text-main)]">
+                            class="flex-shrink-0 rounded-md bg-[var(--bg-medium)] px-3 py-1.5 text-sm font-medium text-[var(--text-secondary)] hover:bg-[var(--bg-darkest)] hover:text-[var(--text-main)]">
                             Clear
                         </button>
                     </div>
                 </div>
 
-                 <form @submit.prevent="addCustomStream()">
-                     <div class="relative">
-                         <input type="text" placeholder="New custom stream..." x-model="newCustomStreamName"
-                                class="w-full rounded-md border-[var(--divider-color)] bg-[var(--bg-darkest)] pr-10 text-sm text-[var(--text-bright)] placeholder-[var(--text-secondary)] focus:border-[var(--highlight-ring)] focus:ring-[var(--highlight-ring)]">
-                         <button type="submit" class="absolute inset-y-0 right-0 flex items-center pr-3 text-[var(--text-secondary)] hover:text-[var(--text-highlight)]">
-                             <i class="material-icons" style="font-size: 20px;">add</i>
-                         </button>
-                     </div>
-                 </form>
-                 <p x-show="customStreamError" x-text="customStreamError" class="mt-2 text-xs text-red-500" x-cloak></p>
-                 <form @submit.prevent="addCategory()" class="mt-2">
+                <form @submit.prevent="addCustomStream()">
                     <div class="relative">
-                        <input type="text" placeholder="New category..." x-model="newCategoryName" class="w-full rounded-md border-[var(--divider-color)] bg-[var(--bg-darkest)] pr-10 text-sm text-[var(--text-bright)] placeholder-[var(--text-secondary)] focus:border-[var(--highlight-ring)] focus:ring-[var(--highlight-ring)]">
-                        <button type="submit" class="absolute inset-y-0 right-0 flex items-center pr-3 text-[var(--text-secondary)] hover:text-[var(--text-highlight)]">
+                        <input type="text" placeholder="New custom stream..." x-model="newCustomStreamName"
+                            class="w-full rounded-md border-[var(--divider-color)] bg-[var(--bg-darkest)] pr-10 text-sm text-[var(--text-bright)] placeholder-[var(--text-secondary)] focus:border-[var(--highlight-ring)] focus:ring-[var(--highlight-ring)]">
+                        <button type="submit"
+                            class="absolute inset-y-0 right-0 flex items-center pr-3 text-[var(--text-secondary)] hover:text-[var(--text-highlight)]">
                             <i class="material-icons" style="font-size: 20px;">add</i>
                         </button>
                     </div>
                 </form>
-                 <p x-show="categoryError" x-text="categoryError" class="mt-2 text-xs text-red-500" x-cloak></p>
-             </div>
+                <p x-show="customStreamError" x-text="customStreamError" class="mt-2 text-xs text-red-500" x-cloak></p>
+                <form @submit.prevent="addCategory()" class="mt-2">
+                    <div class="relative">
+                        <input type="text" placeholder="New category..." x-model="newCategoryName"
+                            class="w-full rounded-md border-[var(--divider-color)] bg-[var(--bg-darkest)] pr-10 text-sm text-[var(--text-bright)] placeholder-[var(--text-secondary)] focus:border-[var(--highlight-ring)] focus:ring-[var(--highlight-ring)]">
+                        <button type="submit"
+                            class="absolute inset-y-0 right-0 flex items-center pr-3 text-[var(--text-secondary)] hover:text-[var(--text-highlight)]">
+                            <i class="material-icons" style="font-size: 20px;">add</i>
+                        </button>
+                    </div>
+                </form>
+                <p x-show="categoryError" x-text="categoryError" class="mt-2 text-xs text-red-500" x-cloak></p>
+            </div>
         </aside>
 
-        <!-- Main Content Area -->
         <main class="flex-1 overflow-y-auto lg:pl-72" @scroll.debounce.300ms="handleScroll($event)">
-            <!-- Main Header -->
-             <header class="sticky top-0 z-10 flex h-16 shrink-0 items-center justify-between border-b border-[var(--divider-color)] bg-[var(--bg-darkest)]/80 px-4 backdrop-blur-md sm:px-6 lg:px-8" x-cloak> <!-- BLUR INCREASED -->
-                 <button type="button" class="-ml-2.5 p-2.5 text-[var(--text-secondary)] hover:text-[var(--text-bright)] lg:hidden" @click="isMobileMenuOpen = true">
+            <header
+                class="sticky top-0 z-10 flex h-16 shrink-0 items-center justify-between border-b border-[var(--divider-color)] bg-[var(--bg-darkest)]/80 px-4 backdrop-blur-md sm:px-6 lg:px-8"
+                x-cloak>
+                <button type="button"
+                    class="-ml-2.5 p-2.5 text-[var(--text-secondary)] hover:text-[var(--text-bright)] lg:hidden"
+                    @click="isMobileMenuOpen = true">
                     <i class="material-icons" style="font-size: 24px;">menu</i>
                 </button>
-                 <div class="hidden min-w-0 flex-1 items-center gap-2 lg:flex">
-                    <button x-show="currentView.type !== 'all'" @click="setView('all'); searchQuery=''" class="p-1 text-[var(--text-secondary)] hover:text-[var(--text-bright)] rounded-full hover:bg-[var(--bg-medium)]" title="Clear filter" x-transition:enter="transition ease-out duration-100" x-transition:enter-start="opacity-0 scale-95" x-transition:enter-end="opacity-100 scale-100" x-transition:leave="transition ease-in duration-75" x-transition:leave-start="opacity-100 scale-100" x-transition:leave-end="opacity-0 scale-95" x-cloak>
+                <div class="hidden min-w-0 flex-1 items-center gap-2 lg:flex">
+                    <button x-show="currentView.type !== 'all'" @click="setView('all'); searchQuery=''"
+                        class="p-1 text-[var(--text-secondary)] hover:text-[var(--text-bright)] rounded-full hover:bg-[var(--bg-medium)]"
+                        title="Clear filter" x-transition:enter="transition ease-out duration-100"
+                        x-transition:enter-start="opacity-0 scale-95" x-transition:enter-end="opacity-100 scale-100"
+                        x-transition:leave="transition ease-in duration-75"
+                        x-transition:leave-start="opacity-100 scale-100" x-transition:leave-end="opacity-0 scale-95"
+                        x-cloak>
                         <span class="material-icons" style="font-size: 20px;">close</span>
                     </button>
                     <div class="min-w-0 flex-1">
                         <h1 class="truncate text-xl font-semibold text-[var(--text-bright)]" x-text="currentTitle"></h1>
                     </div>
-                 </div>
-                 <div class="flex shrink-0 items-center gap-2 pl-4">
-                     <div class="relative">
+                </div>
+                <div class="flex shrink-0 items-center gap-2 pl-4">
+                    <div class="relative">
                         <span class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
                             <i class="material-icons text-[var(--text-secondary)]" style="font-size: 20px;">search</i>
                         </span>
-                        <input type="search" placeholder="Search..." x-model.debounce.300ms="searchQuery" class="w-40 rounded-md border-[var(--divider-color)] bg-[var(--bg-medium)] pl-10 text-sm text-[var(--text-bright)] placeholder-[var(--text-secondary)] focus:border-[var(--highlight-ring)] focus:ring-[var(--highlight-ring)] sm:w-52">
+                        <input type="search" placeholder="Search..." x-model.debounce.300ms="searchQuery"
+                            class="w-40 rounded-md border-[var(--divider-color)] bg-[var(--bg-medium)] pl-10 text-sm text-[var(--text-bright)] placeholder-[var(--text-secondary)] focus:border-[var(--highlight-ring)] focus:ring-[var(--highlight-ring)] sm:w-52">
                     </div>
-                     <select x-model="sortOrder" class="hidden rounded-md border-[var(--divider-color)] bg-[var(--bg-medium)] text-sm text-[var(--text-bright)] focus:border-[var(--highlight-ring)] focus:ring-[var(--highlight-ring)] sm:block">
+                    <select x-model="sortOrder"
+                        class="hidden rounded-md border-[var(--divider-color)] bg-[var(--bg-medium)] text-sm text-[var(--text-bright)] focus:border-[var(--highlight-ring)] focus:ring-[var(--highlight-ring)] sm:block">
                         <option value="newest">Newest First</option>
                         <option value="oldest">Oldest First</option>
                     </select>
-                     <!-- *** NEW: Layout Settings Button *** -->
-                     <button class="p-2 text-[var(--text-secondary)] hover:text-[var(--text-bright)]" @click="openViewSettings()" title="Change View Style">
+                    <button class="p-2 text-[var(--text-secondary)] hover:text-[var(--text-bright)]"
+                        @click="openViewSettings()" title="Change View Style">
                         <i class="material-icons" style="font-size: 20px;">view_quilt</i>
-                     </button>
-                     <button class="p-2 text-[var(--text-secondary)] hover:text-[var(--text-bright)]" @click="refreshAllFeeds(false)" :disabled="isRefreshing">
-                        <i class="material-icons" :class="{ 'animate-spin': isRefreshing }" style="font-size: 20px;">refresh</i>
                     </button>
-                 </div>
-             </header>
+                    <button class="p-2 text-[var(--text-secondary)] hover:text-[var(--text-bright)]"
+                        @click="refreshAllFeeds(false)" :disabled="isRefreshing">
+                        <i class="material-icons" :class="{ 'animate-spin': isRefreshing }"
+                            style="font-size: 20px;">refresh</i>
+                    </button>
 
-            <!-- Article Grid -->
-            <div class="grid gap-6 p-4 mx-auto" 
-                 :class="layoutMode === 'threads' ? 'grid-cols-1 max-w-2xl' : 'grid-cols-1 sm:grid-cols-2 max-w-6xl'" 
-                 x-cloak>
-                 
-                 <template x-if="filteredArticles.length === 0">
+                    <button class="p-2 hover:text-[var(--text-bright)]"
+                        :class="unreadOnly ? 'text-[var(--text-highlight)]' : 'text-[var(--text-secondary)]'"
+                        @click="toggleUnreadOnly()" title="Toggle Unread Only">
+                        <i class="material-icons" style="font-size: 20px;"
+                            x-text="unreadOnly ? 'filter_alt' : 'filter_alt_off'"></i>
+                    </button>
+
+                    <button class="p-2 text-[var(--text-secondary)] hover:text-[var(--text-bright)]"
+                        @click="markAllRead()" title="Mark All As Read">
+                        <i class="material-icons" style="font-size: 20px;">done_all</i>
+                    </button>
+
+                </div>
+            </header>
+
+            <div class="grid gap-6 p-4 mx-auto"
+                :class="layoutMode === 'threads' ? 'grid-cols-1 max-w-2xl' : 'grid-cols-1 sm:grid-cols-2 max-w-6xl'"
+                x-cloak>
+
+                <template x-if="filteredArticles.length === 0">
                     <p class="text-[var(--text-secondary)]" x-text="getEmptyMessage()"></p>
                 </template>
-                 <template x-for="article in filteredArticles" :key="article.id">
-                     <div class="flex flex-col overflow-hidden rounded-lg bg-[var(--bg-medium)] shadow-lg group/card relative">
-                         
-                         <!-- *** MODIFIED: Universal Image Logic *** -->
-                         <template x-if="article.image_url || layoutMode === 'videos'">
-                             <!-- Wrapper -->
-                             <a href="#" @click.prevent="openModal(article)" class="block bg-[var(--bg-darkest)]" :class="{ 'aspect-[16/9]': layoutMode === 'videos' }">
-                                 
-                                 <template x-if="article.image_url">
+                <template x-for="article in filteredArticles" :key="article.id">
+                    <div class="flex flex-col overflow-hidden rounded-lg bg-[var(--bg-medium)] shadow-lg group/card relative transition-opacity duration-300"
+                        :class="{ 'opacity-20': article.is_read, 'opacity-100': !article.is_read }">
+
+                        <template x-if="article.image_url || layoutMode === 'videos'">
+                            <a href="#" @click.prevent="openModal(article)" class="block bg-[var(--bg-darkest)]"
+                                :class="{ 'aspect-[16/9]': layoutMode === 'videos' }">
+
+                                <template x-if="article.image_url">
                                     <div class="w-full h-full relative overflow-hidden bg-[#0f131d]">
-                                        
-                                        <!-- Universal Blurred Background Layer -->
                                         <div class="absolute inset-0">
-                                            <img class="w-full h-full object-cover blur-2xl opacity-40 scale-125" 
-                                                 :src="article.image_url" 
-                                                 aria-hidden="true">
+                                            <img class="w-full h-full object-cover blur-2xl opacity-40 scale-125"
+                                                :src="article.image_url" aria-hidden="true">
                                         </div>
-                                        
-                                        <!-- Main Image Logic -->
-                                        <!-- 1. Videos Mode: Force full cover (cropped) -->
+
                                         <template x-if="layoutMode === 'videos'">
-                                            <img class="relative z-10 w-full h-full object-cover shadow-xl" 
-                                                 :src="article.image_url" 
-                                                 alt="" 
-                                                 @error="handleImageError($event)">
+                                            <img class="relative z-10 w-full h-full object-cover shadow-xl"
+                                                :src="article.image_url" alt="" @error="handleImageError($event)">
                                         </template>
 
-                                        <!-- 2. All Other Modes (Standard, Threads, etc.): Uncropped with max-height -->
                                         <template x-if="layoutMode !== 'videos'">
                                             <div class="relative z-10 flex justify-center items-center h-full">
-                                                <img class="max-w-full w-auto shadow-xl" 
-                                                     /* Use max-h-[70vh] for threads, but limit standard cards to prevent massive vertical images */
-                                                     :class="layoutMode === 'threads' ? 'max-h-[70vh]' : 'max-h-96 object-contain'"
-                                                     :src="article.image_url" 
-                                                     alt="" 
-                                                     @error="handleImageError($event)">
+                                                <img class="max-w-full w-auto shadow-xl"
+                                                    :class="layoutMode === 'threads' ? 'max-h-[70vh]' : 'max-h-96 object-contain'"
+                                                    :src="article.image_url" alt="" @error="handleImageError($event)">
                                             </div>
                                         </template>
 
-                                        <!-- Error State -->
-                                        <div class="hidden h-64 w-full items-center justify-center relative z-10 bg-[var(--bg-darkest)] text-[var(--text-secondary)]">
+                                        <div
+                                            class="hidden h-64 w-full items-center justify-center relative z-10 bg-[var(--bg-darkest)] text-[var(--text-secondary)]">
                                             (Image failed)
                                         </div>
                                     </div>
-                                 </template>
-                                 
-                                 <!-- Fallback for Videos view only -->
-                                 <template x-if="!article.image_url && layoutMode === 'videos'">
-                                    <div class="flex h-full w-full items-center justify-center bg-[var(--bg-darkest)] text-[var(--text-secondary)]">(No Image)</div>
-                                 </template>
-                             </a>
-                         </template>
-                         <!-- *** END MODIFICATION *** -->
-                         
-                         <div class="flex flex-1 flex-col justify-between p-5">
-                             <div class="flex-1">
-                                <h3 class="font-semibold text-[var(--text-bright)]" :class="layoutMode === 'videos' ? 'text-base' : 'text-xl'">
-                                    <a href="#" @click.prevent="openModal(article)" class="hover:underline" x-text="article.title"></a>
+                                </template>
+
+                                <template x-if="!article.image_url && layoutMode === 'videos'">
+                                    <div
+                                        class="flex h-full w-full items-center justify-center bg-[var(--bg-darkest)] text-[var(--text-secondary)]">
+                                        (No Image)</div>
+                                </template>
+                            </a>
+                        </template>
+
+                        <div class="flex flex-1 flex-col justify-between p-5">
+                            <div class="flex-1">
+                                <h3 class="font-semibold text-[var(--text-bright)]"
+                                    :class="layoutMode === 'videos' ? 'text-base' : 'text-xl'">
+                                    <a href="#" @click.prevent="openModal(article)" class="hover:underline"
+                                        x-text="article.title"></a>
                                 </h3>
                                 <div class="mt-3 text-sm text-[var(--text-main)] prose prose-sm prose-invert max-w-none card-preview-content break-words leading-relaxed"
-                                     :class="article.image_url && layoutMode !== 'videos' ? 'line-clamp-3' : 'line-clamp-[8]'"
-                                     x-show="layoutMode !== 'videos'"
-                                     x-html="article.full_content || article.summary">
+                                    :class="article.image_url && layoutMode !== 'videos' ? 'line-clamp-3' : 'line-clamp-[8]'"
+                                    x-show="layoutMode !== 'videos'" x-html="article.full_content || article.summary">
                                 </div>
                             </div>
-                             <div class="mt-4 flex items-center justify-between text-sm text-[var(--text-secondary)]">
-                                 <template x-if="layoutMode === 'videos'">
-                                    <a href="#" @click.prevent="setView('feed', article.feed_id)" class="inline-block rounded-full px-3 py-1 text-xs font-medium" :style="{ backgroundColor: 'var(--feed-pill-bg)', color: 'var(--feed-pill-text)', '&:hover': { backgroundColor: 'var(--feed-pill-hover-bg)' }}" x-text="article.feed_title"></a>
-                                 </template>
-                                 
-                                 <!-- *** MODIFIED: Author Pill *** -->
-                                 <button x-show="layoutMode !== 'videos'" 
-                                         @click.prevent="setView('author', null, article.author)" 
-                                         class="author-pill truncate" 
-                                         :class="getAuthorClass(article)"
-                                         :disabled="!article.author || article.author === 'Unknown Author'" 
-                                         x-text="article.author || 'Unknown Author'">
-                                 </button>
-                                 
-                                 <span x-text="formatRelativeTime(article.published)"></span>
-                             </div>
-                         </div>
-                         <div class="flex items-center justify-end gap-2 border-t border-[var(--divider-color)] p-3 px-5">
-                             <button class="p-1" @click.prevent="toggleFavorite(article)" :class="article.is_favorite ? 'fav-selected' : 'text-[var(--text-secondary)] hover:text-[var(--text-highlight)]'"><i class="material-icons" style="font-size: 20px;" x-text="article.is_favorite ? 'star' : 'star_border'"></i></button>
-                             <button class="p-1" @click.prevent="toggleBookmark(article)" :class="article.is_read_later ? 'text-[var(--text-highlight)]' : 'text-[var(--text-secondary)] hover:text-[var(--text-highlight)]'"><i class="material-icons" style="font-size: 20px;" x-text="article.is_read_later ? 'bookmark' : 'bookmark_border'"></i></button>
-                             <button class="p-1 text-[var(--text-secondary)] hover:text-[var(--text-highlight)]" @click="shareArticle(article)"><span class="material-icons" style="font-size: 20px;" x-text="copiedArticleId === article.id ? 'check' : 'share'"></span></button>
-                             <a :href="article.link" target="_blank" class="p-1 text-[var(--text-secondary)] hover:text-[var(--text-highlight)]"><i class="material-icons" style="font-size: 20px;">open_in_new</i></a>
-                         </div>
-                     </div>
-                 </template>
+                            <div class="mt-4 flex items-center justify-between text-sm text-[var(--text-secondary)]">
+                                <template x-if="layoutMode === 'videos'">
+                                    <a href="#" @click.prevent="setView('feed', article.feed_id)"
+                                        class="inline-block rounded-full px-3 py-1 text-xs font-medium"
+                                        :style="{ backgroundColor: 'var(--feed-pill-bg)', color: 'var(--feed-pill-text)', '&:hover': { backgroundColor: 'var(--feed-pill-hover-bg)' }}"
+                                        x-text="article.feed_title"></a>
+                                </template>
+
+                                <button x-show="layoutMode !== 'videos'"
+                                    @click.prevent="setView('author', null, article.author)"
+                                    class="author-pill truncate" :class="getAuthorClass(article)"
+                                    :disabled="!article.author || article.author === 'Unknown Author'"
+                                    x-text="article.author || 'Unknown Author'">
+                                </button>
+
+                                <span x-text="formatRelativeTime(article.published)"></span>
+                            </div>
+                        </div>
+                        <div
+                            class="flex items-center justify-end gap-2 border-t border-[var(--divider-color)] p-3 px-5">
+                            <button class="p-1" @click.prevent="toggleFavorite(article)"
+                                :class="article.is_favorite ? 'fav-selected' : 'text-[var(--text-secondary)] hover:text-[var(--text-highlight)]'"><i
+                                    class="material-icons" style="font-size: 20px;"
+                                    x-text="article.is_favorite ? 'star' : 'star_border'"></i></button>
+                            <button class="p-1" @click.prevent="toggleBookmark(article)"
+                                :class="article.is_read_later ? 'text-[var(--text-highlight)]' : 'text-[var(--text-secondary)] hover:text-[var(--text-highlight)]'"><i
+                                    class="material-icons" style="font-size: 20px;"
+                                    x-text="article.is_read_later ? 'bookmark' : 'bookmark_border'"></i></button>
+                            <button class="p-1 text-[var(--text-secondary)] hover:text-[var(--text-highlight)]"
+                                @click="shareArticle(article)"><span class="material-icons" style="font-size: 20px;"
+                                    x-text="copiedArticleId === article.id ? 'check' : 'share'"></span></button>
+                            <a :href="article.link" target="_blank"
+                                class="p-1 text-[var(--text-secondary)] hover:text-[var(--text-highlight)]"><i
+                                    class="material-icons" style="font-size: 20px;">open_in_new</i></a>
+                        </div>
+                    </div>
+                </template>
             </div>
-            
-            <!-- *** UPDATED: Loading Indicator & Manual Load Button *** -->
+
             <div class="py-8 text-center" x-cloak>
-                 <p x-show="isLoadingArticles" class="text-[var(--text-secondary)]">Loading more articles...</p>
-                 <button x-show="!isLoadingArticles && hasNextPage" 
-                         @click="loadMoreArticles()" 
-                         class="mt-4 rounded-md bg-[var(--bg-highlight)] px-4 py-2 text-sm font-medium text-[var(--text-bright)] hover:bg-[var(--bg-highlight-hover)] transition-colors">
-                     Load More
-                 </button>
-                 <p x-show="!isLoadingArticles && !hasNextPage && articles.length > 0" class="text-[var(--text-secondary)] text-sm italic mt-4">
-                     You've reached the end.
-                 </p>
+                <p x-show="isLoadingArticles" class="text-[var(--text-secondary)]">Loading more articles...</p>
+                <button x-show="!isLoadingArticles && hasNextPage" @click="loadMoreArticles()"
+                    class="mt-4 rounded-md bg-[var(--bg-highlight)] px-4 py-2 text-sm font-medium text-[var(--text-bright)] hover:bg-[var(--bg-highlight-hover)] transition-colors">
+                    Load More
+                </button>
+                <p x-show="!isLoadingArticles && !hasNextPage && articles.length > 0"
+                    class="text-[var(--text-secondary)] text-sm italic mt-4">
+                    You've reached the end.
+                </p>
             </div>
 
         </main>
     </div>
 
-    <!-- ... (Rest of Modal HTML) ... -->
-    <!-- Article Modal -->
-    <div x-show="isModalOpen" @keydown.escape.window="closeModal()" class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto p-4 pt-12 sm:p-8" x-cloak>
-        <!-- Modal Overlay (Darkened to 90%) -->
-        <div class="fixed inset-0 bg-black/90" @click="closeModal()" x-transition:enter="ease-out duration-300" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100" x-transition:leave="ease-in duration-200" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"></div>
-        
-        <!-- Modal Panel (Darker Background: bg-[#111827]) -->
-        <div class="relative z-10 w-full max-w-3xl overflow-hidden rounded-lg bg-[#111827] shadow-xl" x-show="isModalOpen" x-transition:enter="ease-out duration-300" x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95" x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100" x-transition:leave="ease-in duration-200" x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100" x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95">
+    <div x-show="isModalOpen" @keydown.escape.window="closeModal()"
+        class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto p-4 pt-12 sm:p-8" x-cloak>
+        <div class="fixed inset-0 bg-black/90" @click="closeModal()" x-transition:enter="ease-out duration-300"
+            x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
+            x-transition:leave="ease-in duration-200" x-transition:leave-start="opacity-100"
+            x-transition:leave-end="opacity-0"></div>
+
+        <div class="relative z-10 w-full max-w-3xl overflow-hidden rounded-lg bg-[#111827] shadow-xl"
+            x-show="isModalOpen" x-transition:enter="ease-out duration-300"
+            x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+            x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100" x-transition:leave="ease-in duration-200"
+            x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100"
+            x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95">
             <template x-if="modalArticle">
                 <div>
-                    <!-- MODAL HEADER (RE-ORDERED FOR MOBILE) -->
-                    <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between border-b border-[var(--divider-color)] p-4 sm:p-5">
-                        
-                        <!-- Action Buttons (Order 1 on mobile) -->
+                    <div
+                        class="flex flex-col sm:flex-row sm:items-start sm:justify-between border-b border-[var(--divider-color)] p-4 sm:p-5">
+
                         <div class="flex flex-shrink-0 items-center justify-end gap-2 sm:order-2 sm:justify-start">
-                            <button class="p-1.5" @click.prevent="toggleFavorite(modalArticle)" :class="modalArticle.is_favorite ? 'fav-selected' : 'text-[var(--text-secondary)] hover:text-[var(--text-highlight)]'" title="Favorite">
-                                <i class="material-icons" style="font-size: 20px;" x-text="modalArticle.is_favorite ? 'star' : 'star_border'"></i>
+                            <button class="p-1.5" @click.prevent="toggleFavorite(modalArticle)"
+                                :class="modalArticle.is_favorite ? 'fav-selected' : 'text-[var(--text-secondary)] hover:text-[var(--text-highlight)]'"
+                                title="Favorite">
+                                <i class="material-icons" style="font-size: 20px;"
+                                    x-text="modalArticle.is_favorite ? 'star' : 'star_border'"></i>
                             </button>
-                            <button class="p-1.5" @click.prevent="toggleBookmark(modalArticle)" :class="modalArticle.is_read_later ? 'text-[var(--text-highlight)]' : 'text-[var(--text-secondary)] hover:text-[var(--text-highlight)]'" title="Read Later">
-                                <i class="material-icons" style="font-size: 20px;" x-text="modalArticle.is_read_later ? 'bookmark' : 'bookmark_border'"></i>
+                            <button class="p-1.5" @click.prevent="toggleBookmark(modalArticle)"
+                                :class="modalArticle.is_read_later ? 'text-[var(--text-highlight)]' : 'text-[var(--text-secondary)] hover:text-[var(--text-highlight)]'"
+                                title="Read Later">
+                                <i class="material-icons" style="font-size: 20px;"
+                                    x-text="modalArticle.is_read_later ? 'bookmark' : 'bookmark_border'"></i>
                             </button>
-                            <a :href="modalArticle.link" target="_blank" class="p-1.5 text-[var(--text-secondary)] hover:text-[var(--text-highlight)]" title="Open in new tab">
+                            <a :href="modalArticle.link" target="_blank"
+                                class="p-1.5 text-[var(--text-secondary)] hover:text-[var(--text-highlight)]"
+                                title="Open in new tab">
                                 <i class="material-icons" style="font-size: 20px;">open_in_new</i>
                             </a>
-                            <button class="ml-2 h-8 w-8 flex-shrink-0 rounded-full bg-[var(--bg-darkest)] flex items-center justify-center text-[var(--text-secondary)] hover:bg-[var(--bg-highlight)] hover:text-[var(--text-bright)]" @click="closeModal()" title="Close">
+                            <button
+                                class="ml-2 h-8 w-8 flex-shrink-0 rounded-full bg-[var(--bg-darkest)] flex items-center justify-center text-[var(--text-secondary)] hover:bg-[var(--bg-highlight)] hover:text-[var(--text-bright)]"
+                                @click="closeModal()" title="Close">
                                 <i class="material-icons" style="font-size: 20px;">close</i>
                             </button>
                         </div>
 
-                        <!-- Title and Author (Order 2 on mobile) -->
                         <div class="flex-1 pr-4 mt-3 sm:mt-0 sm:order-1">
                             <a :href="modalArticle.link" target="_blank" class="hover:underline">
-                                <h2 class="text-lg font-semibold text-[var(--text-bright)]" x-text="modalArticle.title"></h2>
+                                <h2 class="text-lg font-semibold text-[var(--text-bright)]" x-text="modalArticle.title">
+                                </h2>
                             </a>
                             <div class="mt-1 text-sm text-[var(--text-secondary)]">
                                 <span x-text="modalArticle.feed_title"></span>
@@ -541,49 +596,58 @@
                         </div>
                     </div>
 
-                    <!-- MODAL SCROLL FIX (x-ref added) -->
                     <div class="max-h-[75vh] overflow-y-auto p-4 sm:p-5" x-ref="modalContent">
-                         
-                         <!-- *** NEW: Simplified Embed Logic *** -->
-                         <template x-if="modalEmbedHtml">
+
+                        <template x-if="modalEmbedHtml">
                             <div x-html="modalEmbedHtml" class="mb-4"></div>
-                         </template>
-                         
-                         <!-- Image (only shows if no embed HTML was generated) -->
-                         <template x-if="modalArticle.image_url && !modalEmbedHtml">
-                            <img class="w-full rounded-lg mb-4" :src="modalArticle.image_url" alt="" @error="$event.target.style.display='none'">
                         </template>
 
-                        <!-- Article Content -->
-                        <div class="prose prose-sm sm:prose-base prose-invert max-w-none text-[var(--text-main)]" x-html="renderModalContent(modalArticle)"></div>
-                        
-                        <!-- URL PILL & COPY BUTTON -->
+                        <template x-if="modalArticle.image_url && !modalEmbedHtml">
+                            <img class="w-full rounded-lg mb-4" :src="modalArticle.image_url" alt=""
+                                @error="$event.target.style.display='none'">
+                        </template>
+
+                        <div class="prose prose-sm sm:prose-base prose-invert max-w-none text-[var(--text-main)]"
+                            x-html="renderModalContent(modalArticle)"></div>
+
                         <div class="mt-6">
                             <label class="block text-xs font-medium text-[var(--text-secondary)]">Original Link</label>
                             <div class="mt-1 flex items-center gap-2">
-                                <input type="text" readonly :value="modalArticle.link" @click="$event.target.select()" class="w-full flex-1 truncate rounded-md border-[var(--divider-color)] bg-[var(--bg-darkest)] p-2 text-sm text-[var(--text-secondary)] focus:ring-0 focus:border-[var(--divider-color)] cursor-pointer" title="Click to select link">
-                                <button @click="copyToClipboard(modalArticle.link, modalArticle.id)" class="flex-shrink-0 p-2 rounded-md bg-[var(--bg-darkest)] text-[var(--text-secondary)] hover:bg-[var(--bg-highlight)] hover:text-[var(--text-bright)]" title="Copy link">
-                                    <i class="material-icons" style="font-size: 20px;" x-text="copiedArticleId === modalArticle.id ? 'check' : 'content_copy'"></i>
+                                <input type="text" readonly :value="modalArticle.link" @click="$event.target.select()"
+                                    class="w-full flex-1 truncate rounded-md border-[var(--divider-color)] bg-[var(--bg-darkest)] p-2 text-sm text-[var(--text-secondary)] focus:ring-0 focus:border-[var(--divider-color)] cursor-pointer"
+                                    title="Click to select link">
+                                <button @click="copyToClipboard(modalArticle.link, modalArticle.id)"
+                                    class="flex-shrink-0 p-2 rounded-md bg-[var(--bg-darkest)] text-[var(--text-secondary)] hover:bg-[var(--bg-highlight)] hover:text-[var(--text-bright)]"
+                                    title="Copy link">
+                                    <i class="material-icons" style="font-size: 20px;"
+                                        x-text="copiedArticleId === modalArticle.id ? 'check' : 'content_copy'"></i>
                                 </button>
                             </div>
                         </div>
 
-                        <a :href="modalArticle.link" target="_blank" class="mt-4 inline-block text-[var(--text-highlight)] hover:text-[#8bebfd]">Read full article &rarr;</a>
+                        <a :href="modalArticle.link" target="_blank"
+                            class="mt-4 inline-block text-[var(--text-highlight)] hover:text-[#8bebfd]">Read full
+                            article &rarr;</a>
                     </div>
                 </div>
             </template>
         </div>
     </div>
-    
-    <!-- Assign Feeds Modal -->
-    <div x-show="isAssignModalOpen" @keydown.escape.window="isAssignModalOpen = false" class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/80 p-4 pt-12 sm:p-8" x-cloak>
-        <!-- Modal Overlay -->
-        <div class="fixed inset-0" @click="isAssignModalOpen = false" x-transition:enter="ease-out duration-300" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100" x-transition:leave="ease-in duration-200" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"></div>
-        
-        <!-- Modal Panel -->
-        <div class="relative z-10 w-full max-w-md overflow-hidden rounded-lg bg-[var(--bg-medium)] shadow-xl" x-show="isAssignModalOpen" x-transition:enter="ease-out duration-300" x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95" x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100" x-transition:leave="ease-in duration-200" x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100" x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95">
-            
-            <!-- Modal Header -->
+
+    <div x-show="isAssignModalOpen" @keydown.escape.window="isAssignModalOpen = false"
+        class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/80 p-4 pt-12 sm:p-8" x-cloak>
+        <div class="fixed inset-0" @click="isAssignModalOpen = false" x-transition:enter="ease-out duration-300"
+            x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
+            x-transition:leave="ease-in duration-200" x-transition:leave-start="opacity-100"
+            x-transition:leave-end="opacity-0"></div>
+
+        <div class="relative z-10 w-full max-w-md overflow-hidden rounded-lg bg-[var(--bg-medium)] shadow-xl"
+            x-show="isAssignModalOpen" x-transition:enter="ease-out duration-300"
+            x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+            x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100" x-transition:leave="ease-in duration-200"
+            x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100"
+            x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95">
+
             <div class="border-b border-[var(--divider-color)] p-4 sm:p-5">
                 <h2 class="text-lg font-semibold text-[var(--text-bright)]">Assign Feeds</h2>
                 <p class="mt-1 text-sm text-[var(--text-secondary)]">
@@ -591,31 +655,32 @@
                 </p>
             </div>
 
-            <!-- Modal Content -->
             <div class="max-h-[70vh] overflow-y-auto p-4 sm:p-5 space-y-4">
-                <!-- Move to Category -->
                 <div>
-                    <label for="category-select" class="block text-sm font-medium text-[var(--text-bright)]">Move to Category</label>
+                    <label for="category-select" class="block text-sm font-medium text-[var(--text-bright)]">Move to
+                        Category</label>
                     <select id="category-select" x-model="assignModalCategoryId"
-                            class="mt-1 block w-full rounded-md border-[var(--divider-color)] bg-[var(--bg-darkest)] text-[var(--text-main)] focus:border-[var(--highlight-ring)] focus:ring-[var(--highlight-ring)]">
+                        class="mt-1 block w-full rounded-md border-[var(--divider-color)] bg-[var(--bg-darkest)] text-[var(--text-main)] focus:border-[var(--highlight-ring)] focus:ring-[var(--highlight-ring)]">
                         <option value="none">-- Don't Change --</option>
-                        <template x-for="category in appData.categories.sort((a, b) => a.name === 'Uncategorized' ? -1 : b.name === 'Uncategorized' ? 1 : a.name.localeCompare(b.name))" :key="category.id">
+                        <template
+                            x-for="category in appData.categories.sort((a, b) => a.name === 'Uncategorized' ? -1 : b.name === 'Uncategorized' ? 1 : a.name.localeCompare(b.name))"
+                            :key="category.id">
                             <option :value="category.id" x-text="category.name"></option>
                         </template>
                     </select>
                 </div>
 
-                <!-- Add to Streams -->
                 <div>
                     <label class="block text-sm font-medium text-[var(--text-bright)]">Add to Streams</label>
-                    <div class="mt-2 max-h-48 overflow-y-auto rounded-md border border-[var(--divider-color)] bg-[var(--bg-darkest)] p-2 space-y-2">
+                    <div
+                        class="mt-2 max-h-48 overflow-y-auto rounded-md border border-[var(--divider-color)] bg-[var(--bg-darkest)] p-2 space-y-2">
                         <template x-if="appData.customStreams.length === 0">
                             <p class="text-sm text-[var(--text-secondary)] italic">No custom streams created.</p>
                         </template>
                         <template x-for="stream in appData.customStreams" :key="stream.id">
                             <label class="flex items-center space-x-2 p-1 rounded hover:bg-[var(--bg-medium)]">
                                 <input type="checkbox" :value="stream.id" x-model="assignModalStreamIds"
-                                       class="h-4 w-4 rounded border-[var(--divider-color)] bg-[var(--bg-darkest)] text-[var(--text-highlight)] focus:ring-[var(--highlight-ring)]">
+                                    class="h-4 w-4 rounded border-[var(--divider-color)] bg-[var(--bg-darkest)] text-[var(--text-highlight)] focus:ring-[var(--highlight-ring)]">
                                 <span class="text-[var(--text-main)]" x-text="stream.name"></span>
                             </label>
                         </template>
@@ -623,76 +688,81 @@
                 </div>
             </div>
 
-            <!-- Modal Footer -->
             <div class="flex items-center justify-end gap-3 border-t border-[var(--divider-color)] p-4">
                 <button @click="isAssignModalOpen = false"
-                        class="rounded-md bg-[var(--bg-medium)] px-4 py-2 text-sm font-medium text-[var(--text-secondary)] hover:bg-[var(--bg-darkest)] hover:text-[var(--text-main)]">
+                    class="rounded-md bg-[var(--bg-medium)] px-4 py-2 text-sm font-medium text-[var(--text-secondary)] hover:bg-[var(--bg-darkest)] hover:text-[var(--text-main)]">
                     Cancel
                 </button>
                 <button @click="assignFeeds()"
-                        class="rounded-md bg-[var(--bg-highlight)] px-4 py-2 text-sm font-medium text-[var(--text-bright)] hover:bg-[var(--bg-highlight-hover)]">
+                    class="rounded-md bg-[var(--bg-highlight)] px-4 py-2 text-sm font-medium text-[var(--text-bright)] hover:bg-[var(--bg-highlight-hover)]">
                     Save Changes
                 </button>
             </div>
         </div>
     </div>
 
-    <!-- Edit Modal (formerly Rename Modal) -->
-    <div x-show="isEditModalOpen" @keydown.escape.window="isEditModalOpen = false" class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/80 p-4 pt-12 sm:p-8" x-cloak>
-        <!-- Modal Overlay -->
-        <div class="fixed inset-0" @click="isEditModalOpen = false" x-transition:enter="ease-out duration-300" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100" x-transition:leave="ease-in duration-200" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"></div>
-        
-        <!-- Modal Panel -->
-        <div class="relative z-10 w-full max-w-md overflow-hidden rounded-lg bg-[var(--bg-medium)] shadow-xl" x-show="isEditModalOpen" x-transition:enter="ease-out duration-300" x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95" x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100" x-transition:leave="ease-in duration-200" x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100" x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95">
-            
+    <div x-show="isEditModalOpen" @keydown.escape.window="isEditModalOpen = false"
+        class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/80 p-4 pt-12 sm:p-8" x-cloak>
+        <div class="fixed inset-0" @click="isEditModalOpen = false" x-transition:enter="ease-out duration-300"
+            x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
+            x-transition:leave="ease-in duration-200" x-transition:leave-start="opacity-100"
+            x-transition:leave-end="opacity-0"></div>
+
+        <div class="relative z-10 w-full max-w-md overflow-hidden rounded-lg bg-[var(--bg-medium)] shadow-xl"
+            x-show="isEditModalOpen" x-transition:enter="ease-out duration-300"
+            x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+            x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100" x-transition:leave="ease-in duration-200"
+            x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100"
+            x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95">
+
             <form @submit.prevent="submitEditModal()">
-                <!-- Modal Header -->
                 <div class="border-b border-[var(--divider-color)] p-4 sm:p-5">
-                    <h2 class="text-lg font-semibold text-[var(--text-bright)]" x-text="editModal.type === 'global' ? 'View Settings' : `Edit ${editModal.type}`"></h2>
+                    <h2 class="text-lg font-semibold text-[var(--text-bright)]"
+                        x-text="editModal.type === 'global' ? 'View Settings' : `Edit ${editModal.type}`"></h2>
                     <p class="mt-1 text-sm text-[var(--text-secondary)]" x-text="editModal.currentName"></p>
                 </div>
 
-                <!-- Modal Content -->
                 <div class="max-h-[70vh] overflow-y-auto p-4 sm:p-5 space-y-4">
-                    
-                    <!-- Rename Input (Hidden for Global Views) -->
+
                     <div x-show="editModal.type !== 'global'">
-                        <label for="rename-input" class="block text-sm font-medium text-[var(--text-bright)]">Name</label>
+                        <label for="rename-input"
+                            class="block text-sm font-medium text-[var(--text-bright)]">Name</label>
                         <input type="text" id="rename-input" x-model="editModalNewName"
-                               class="mt-1 block w-full rounded-md border-[var(--divider-color)] bg-[var(--bg-darkest)] text-[var(--text-main)] focus:border-[var(--highlight-ring)] focus:ring-[var(--highlight-ring)]">
-                        
-                        <!-- *** NEW: Feed URL Display (Updated Colors) *** -->
+                            class="mt-1 block w-full rounded-md border-[var(--divider-color)] bg-[var(--bg-darkest)] text-[var(--text-main)] focus:border-[var(--highlight-ring)] focus:ring-[var(--highlight-ring)]">
+
                         <template x-if="editModal.type === 'feed'">
                             <div class="mt-3">
-                                <label class="block text-xs font-medium text-[var(--text-secondary)]">RSS Feed URL</label>
+                                <label class="block text-xs font-medium text-[var(--text-secondary)]">RSS Feed
+                                    URL</label>
                                 <div class="mt-1 flex items-center gap-2">
-                                    <!-- Changed text color to text-[var(--text-highlight)] and background to full opacity -->
-                                    <input type="text" readonly :value="editModal.url || 'Loading...'" 
-                                           @click="$event.target.select()" 
-                                           class="w-full flex-1 truncate rounded-md border-[var(--divider-color)] bg-[var(--bg-darkest)] p-2 text-xs text-[var(--text-highlight)] focus:ring-0 focus:border-[var(--divider-color)] cursor-pointer font-mono" 
-                                           title="Click to select link">
-                                    <button type="button" @click="copyToClipboard(editModal.url, 'feed-url')" 
-                                            class="flex-shrink-0 p-2 rounded-md bg-[var(--bg-darkest)] text-[var(--text-secondary)] hover:bg-[var(--bg-highlight)] hover:text-[var(--text-bright)]" 
-                                            title="Copy URL">
-                                        <i class="material-icons" style="font-size: 18px;" x-text="copiedArticleId === 'feed-url' ? 'check' : 'content_copy'"></i>
+                                    <input type="text" readonly :value="editModal.url || 'Loading...'"
+                                        @click="$event.target.select()"
+                                        class="w-full flex-1 truncate rounded-md border-[var(--divider-color)] bg-[var(--bg-darkest)] p-2 text-xs text-[var(--text-highlight)] focus:ring-0 focus:border-[var(--divider-color)] cursor-pointer font-mono"
+                                        title="Click to select link">
+                                    <button type="button" @click="copyToClipboard(editModal.url, 'feed-url')"
+                                        class="flex-shrink-0 p-2 rounded-md bg-[var(--bg-darkest)] text-[var(--text-secondary)] hover:bg-[var(--bg-highlight)] hover:text-[var(--text-bright)]"
+                                        title="Copy URL">
+                                        <i class="material-icons" style="font-size: 18px;"
+                                            x-text="copiedArticleId === 'feed-url' ? 'check' : 'content_copy'"></i>
                                     </button>
                                 </div>
                             </div>
                         </template>
-                        
-                        <p x-show="editModalError" x-text="editModalError" class="mt-2 text-xs text-red-500" x-cloak></p>
+
+                        <p x-show="editModalError" x-text="editModalError" class="mt-2 text-xs text-red-500" x-cloak>
+                        </p>
                     </div>
 
                     <hr class="border-[var(--divider-color)]" x-show="editModal.type !== 'global'">
 
-                    <!-- *** NEW: Style Settings *** -->
                     <div>
                         <h3 class="block text-sm font-medium text-[var(--text-bright)]">Settings</h3>
-                        
-                        <!-- Layout Style Dropdown -->
+
                         <div class="mt-3 mb-4">
-                            <label class="block text-xs font-medium text-[var(--text-secondary)] mb-1">View Style</label>
-                            <select x-model="editModal.layout_style" class="w-full rounded-md border-[var(--divider-color)] bg-[var(--bg-darkest)] text-sm text-[var(--text-main)] focus:border-[var(--highlight-ring)] focus:ring-[var(--highlight-ring)]">
+                            <label class="block text-xs font-medium text-[var(--text-secondary)] mb-1">View
+                                Style</label>
+                            <select x-model="editModal.layout_style"
+                                class="w-full rounded-md border-[var(--divider-color)] bg-[var(--bg-darkest)] text-sm text-[var(--text-main)] focus:border-[var(--highlight-ring)] focus:ring-[var(--highlight-ring)]">
                                 <option value="default">Auto (Default)</option>
                                 <option value="standard">Feed (Standard Grid)</option>
                                 <option value="videos">Videos (Thumbnail Grid)</option>
@@ -700,31 +770,31 @@
                             </select>
                         </div>
 
-                        <!-- Feed Edit Mode: Exclude from All -->
                         <template x-if="editModal.type === 'feed'">
                             <label class="mt-2 flex items-center space-x-2 p-1">
                                 <input type="checkbox" x-model="editModalFeedStates[editModal.id]"
-                                       class="h-4 w-4 rounded border-[var(--divider-color)] bg-[var(--bg-darkest)] text-[var(--text-highlight)] focus:ring-[var(--highlight-ring)]">
+                                    class="h-4 w-4 rounded border-[var(--divider-color)] bg-[var(--bg-darkest)] text-[var(--text-highlight)] focus:ring-[var(--highlight-ring)]">
                                 <span class="text-[var(--text-main)]">Exclude from "All Feeds"</span>
                             </label>
                         </template>
 
-                        <!-- Category Edit Mode: Exclude All + List -->
                         <template x-if="editModal.type === 'category'">
                             <label class="mt-2 flex items-center space-x-2 p-1">
-                                <input type="checkbox" x-model="editModalExcludeAll" 
-                                       @change="toggleExcludeAllFeeds($event.target.checked)"
-                                       class="h-4 w-4 rounded border-[var(--divider-color)] bg-[var(--bg-darkest)] text-[var(--text-highlight)] focus:ring-[var(--highlight-ring)]">
+                                <input type="checkbox" x-model="editModalExcludeAll"
+                                    @change="toggleExcludeAllFeeds($event.target.checked)"
+                                    class="h-4 w-4 rounded border-[var(--divider-color)] bg-[var(--bg-darkest)] text-[var(--text-highlight)] focus:ring-[var(--highlight-ring)]">
                                 <span class="text-[var(--text-main)]">Exclude all feeds in category</span>
                             </label>
 
-                            <!-- Feed override list -->
-                            <div class="mt-2 max-h-48 overflow-y-auto rounded-md border border-[var(--divider-color)] bg-[var(--bg-darkest)] p-2 space-y-2">
-                                <p class="text-xs text-[var(--text-secondary)] px-1">Manage which feeds are excluded:</p>
+                            <div
+                                class="mt-2 max-h-48 overflow-y-auto rounded-md border border-[var(--divider-color)] bg-[var(--bg-darkest)] p-2 space-y-2">
+                                <p class="text-xs text-[var(--text-secondary)] px-1">Manage which feeds are excluded:
+                                </p>
                                 <template x-for="feed in getFeedsInCategory(editModal.id)" :key="feed.id">
                                     <label class="flex items-center space-x-2 p-1 rounded hover:bg-[var(--bg-medium)]">
-                                        <input type="checkbox" x-model="editModalFeedStates[feed.id]" @change="updateExcludeAllState()"
-                                               class="h-4 w-4 rounded border-[var(--divider-color)] bg-[var(--bg-darkest)] text-[var(--text-highlight)] focus:ring-[var(--highlight-ring)]">
+                                        <input type="checkbox" x-model="editModalFeedStates[feed.id]"
+                                            @change="updateExcludeAllState()"
+                                            class="h-4 w-4 rounded border-[var(--divider-color)] bg-[var(--bg-darkest)] text-[var(--text-highlight)] focus:ring-[var(--highlight-ring)]">
                                         <span class="text-[var(--text-main)] truncate" x-text="feed.title"></span>
                                     </label>
                                 </template>
@@ -733,14 +803,13 @@
                     </div>
                 </div>
 
-                <!-- Modal Footer -->
                 <div class="flex items-center justify-end gap-3 border-t border-[var(--divider-color)] p-4">
                     <button type="button" @click="isEditModalOpen = false"
-                            class="rounded-md bg-[var(--bg-medium)] px-4 py-2 text-sm font-medium text-[var(--text-secondary)] hover:bg-[var(--bg-darkest)] hover:text-[var(--text-main)]">
+                        class="rounded-md bg-[var(--bg-medium)] px-4 py-2 text-sm font-medium text-[var(--text-secondary)] hover:bg-[var(--bg-darkest)] hover:text-[var(--text-main)]">
                         Cancel
                     </button>
                     <button type="submit"
-                            class="rounded-md bg-[var(--bg-highlight)] px-4 py-2 text-sm font-medium text-[var(--text-bright)] hover:bg-[var(--bg-highlight-hover)]">
+                        class="rounded-md bg-[var(--bg-highlight)] px-4 py-2 text-sm font-medium text-[var(--text-bright)] hover:bg-[var(--bg-highlight-hover)]">
                         Save
                     </button>
                 </div>
@@ -748,15 +817,20 @@
         </div>
     </div>
 
-    <!-- NEW: Settings/Backup Modal -->
-    <div x-show="isSettingsModalOpen" @keydown.escape.window="isSettingsModalOpen = false" class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/80 p-4 pt-12 sm:p-8" x-cloak>
-        <!-- Modal Overlay -->
-        <div class="fixed inset-0" @click="isSettingsModalOpen = false" x-transition:enter="ease-out duration-300" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100" x-transition:leave="ease-in duration-200" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"></div>
-        
-        <!-- Modal Panel -->
-        <div class="relative z-10 w-full max-w-md overflow-hidden rounded-lg bg-[var(--bg-medium)] shadow-xl" x-show="isSettingsModalOpen" x-transition:enter="ease-out duration-300" x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95" x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100" x-transition:leave="ease-in duration-200" x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100" x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95">
-            
-            <!-- Modal Header -->
+    <div x-show="isSettingsModalOpen" @keydown.escape.window="isSettingsModalOpen = false"
+        class="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/80 p-4 pt-12 sm:p-8" x-cloak>
+        <div class="fixed inset-0" @click="isSettingsModalOpen = false" x-transition:enter="ease-out duration-300"
+            x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
+            x-transition:leave="ease-in duration-200" x-transition:leave-start="opacity-100"
+            x-transition:leave-end="opacity-0"></div>
+
+        <div class="relative z-10 w-full max-w-md overflow-hidden rounded-lg bg-[var(--bg-medium)] shadow-xl"
+            x-show="isSettingsModalOpen" x-transition:enter="ease-out duration-300"
+            x-transition:enter-start="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95"
+            x-transition:enter-end="opacity-100 translate-y-0 sm:scale-100" x-transition:leave="ease-in duration-200"
+            x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100"
+            x-transition:leave-end="opacity-0 translate-y-4 sm:translate-y-0 sm:scale-95">
+
             <div class="border-b border-[var(--divider-color)] p-4 sm:p-5">
                 <h2 class="text-lg font-semibold text-[var(--text-bright)]">Backup & Restore</h2>
                 <p class="mt-1 text-sm text-[var(--text-secondary)]">
@@ -764,16 +838,30 @@
                 </p>
             </div>
 
-            <!-- Modal Content -->
             <div class="p-4 sm:p-5 space-y-6">
-                
-                <!-- Export Section -->
+
+                <div>
+                    <h3 class="text-sm font-medium text-[var(--text-bright)]">Maintenance</h3>
+                    <p class="mt-1 text-xs text-[var(--text-secondary)]">
+                        Clean up articles older than 30 days. Favorites and Bookmarks are safe.
+                    </p>
+                    <div class="mt-3 flex items-center gap-3">
+                        <button @click="apiPost('/api/maintenance/cleanup', {days: 30}).then(res => alert(res.message))"
+                            class="rounded-md bg-[var(--bg-darkest)] border border-[var(--divider-color)] px-4 py-2 text-xs font-medium text-[var(--text-secondary)] hover:text-red-400 hover:border-red-900 transition-colors">
+                            Clean Old Articles
+                        </button>
+                    </div>
+                </div>
+
+                <hr class="border-[var(--divider-color)]">
+
                 <div>
                     <h3 class="text-sm font-medium text-[var(--text-bright)]">Export Feeds</h3>
                     <p class="mt-1 text-xs text-[var(--text-secondary)]">
                         Download a standard OPML file containing all your current feeds and categories.
                     </p>
-                    <button @click="exportFeeds()" class="mt-3 flex w-full items-center justify-center gap-2 rounded-md bg-[var(--bg-darkest)] px-4 py-2.5 text-sm font-medium text-[var(--text-highlight)] border border-[var(--divider-color)] hover:bg-[var(--bg-highlight)]/10 hover:border-[var(--text-highlight)] transition-colors">
+                    <button @click="exportFeeds()"
+                        class="mt-3 flex w-full items-center justify-center gap-2 rounded-md bg-[var(--bg-darkest)] px-4 py-2.5 text-sm font-medium text-[var(--text-highlight)] border border-[var(--divider-color)] hover:bg-[var(--bg-highlight)]/10 hover:border-[var(--text-highlight)] transition-colors">
                         <i class="material-icons text-lg">download</i>
                         Download Backup (.opml)
                     </button>
@@ -781,34 +869,34 @@
 
                 <hr class="border-[var(--divider-color)]">
 
-                <!-- Import Section -->
                 <div>
                     <h3 class="text-sm font-medium text-[var(--text-bright)]">Import Feeds</h3>
                     <p class="mt-1 text-xs text-[var(--text-secondary)]">
                         Upload an OPML file to add feeds. Existing feeds will be skipped.
                     </p>
-                    
+
                     <div class="mt-3">
-                        <label class="flex w-full cursor-pointer items-center justify-center gap-2 rounded-md bg-[var(--bg-highlight)] px-4 py-2.5 text-sm font-medium text-[var(--text-bright)] hover:bg-[var(--bg-highlight-hover)] transition-colors text-center">
+                        <label
+                            class="flex w-full cursor-pointer items-center justify-center gap-2 rounded-md bg-[var(--bg-highlight)] px-4 py-2.5 text-sm font-medium text-[var(--text-bright)] hover:bg-[var(--bg-highlight-hover)] transition-colors text-center">
                             <i class="material-icons text-lg">upload</i>
                             <span x-text="importStatus === 'uploading' ? 'Importing...' : 'Select OPML File'"></span>
-                            <input type="file" class="hidden" accept=".opml,.xml" @change="importFeeds($event)" :disabled="importStatus === 'uploading'">
+                            <input type="file" class="hidden" accept=".opml,.xml" @change="importFeeds($event)"
+                                :disabled="importStatus === 'uploading'">
                         </label>
                     </div>
 
-                    <!-- Import Feedback -->
                     <div x-show="importMessage" class="mt-3 rounded-md p-3 text-sm"
-                         :class="importStatus === 'error' ? 'bg-red-900/20 text-red-400' : 'bg-green-900/20 text-green-400'"
-                         x-text="importMessage">
+                        :class="importStatus === 'error' ? 'bg-red-900/20 text-red-400' : 'bg-green-900/20 text-green-400'"
+                        x-text="importMessage">
                     </div>
                 </div>
 
             </div>
 
-            <!-- Modal Footer -->
-            <div class="flex items-center justify-end border-t border-[var(--divider-color)] p-4 bg-[var(--bg-darkest)]/30">
+            <div
+                class="flex items-center justify-end border-t border-[var(--divider-color)] p-4 bg-[var(--bg-darkest)]/30">
                 <button @click="isSettingsModalOpen = false"
-                        class="rounded-md bg-[var(--bg-medium)] px-4 py-2 text-sm font-medium text-[var(--text-secondary)] hover:bg-[var(--bg-darkest)] hover:text-[var(--text-main)]">
+                    class="rounded-md bg-[var(--bg-medium)] px-4 py-2 text-sm font-medium text-[var(--text-secondary)] hover:bg-[var(--bg-darkest)] hover:text-[var(--text-main)]">
                     Close
                 </button>
             </div>

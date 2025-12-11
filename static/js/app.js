@@ -24,6 +24,7 @@ document.addEventListener('alpine:init', () => {
         },
         articles: [],
         currentView: { type: 'all', id: null, title: 'All Feeds' },
+        
 
         // --- Article Loading State ---
         currentPage: 1,
@@ -36,7 +37,7 @@ document.addEventListener('alpine:init', () => {
         isModalOpen: false,
         modalArticle: null,
         modalEmbedHtml: null, 
-        activeArticleIndex: -1, // *** NEW: Track current index for autoplay ***
+        activeArticleIndex: -1, 
         isRefreshing: false,
         copiedArticleId: null,
         
@@ -57,6 +58,7 @@ document.addEventListener('alpine:init', () => {
         // --- Filtering & Sorting ---
         searchQuery: '',
         sortOrder: 'newest',
+        unreadOnly: false,
         
         // --- Drag & Drop State ---
         draggingFeedId: null,
@@ -88,7 +90,8 @@ document.addEventListener('alpine:init', () => {
 
         // --- Init Function ---
         async init() {
-            this.loadYouTubeApi(); // *** NEW: Load YT API ***
+            this.loadYouTubeApi(); 
+            this.setupKeyboardShortcuts(); // Initialize shortcuts
             this.isRefreshing = true;
             await this.fetchAppData();
             await this.fetchArticles(true); 
@@ -98,7 +101,57 @@ document.addEventListener('alpine:init', () => {
             setInterval(() => this.refreshAllFeeds(true), 15 * 60 * 1000);
         },
 
-        // *** NEW: Load YouTube IFrame API ***
+        // --- Keyboard Shortcuts (J/K Navigation) ---
+        setupKeyboardShortcuts() {
+            document.addEventListener('keydown', (e) => {
+                // Ignore if typing in an input
+                if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
+                const key = e.key.toLowerCase();
+
+                // Navigation (J = Next, K = Prev)
+                if (key === 'j' || key === 'k') {
+                    const articles = this.filteredArticles;
+                    if (articles.length === 0) return;
+
+                    let newIndex = -1;
+
+                    if (key === 'j') {
+                        newIndex = this.activeArticleIndex + 1;
+                    } else if (key === 'k') {
+                        newIndex = this.activeArticleIndex - 1;
+                    }
+
+                    // Bounds check
+                    if (newIndex >= 0 && newIndex < articles.length) {
+                        this.activeArticleIndex = newIndex;
+                        const nextArticle = articles[newIndex];
+                        
+                        // If modal is open, switch content. If closed, open it.
+                        // Note: openModal now triggers markAsRead automatically
+                        this.openModal(nextArticle); 
+                        
+                        // Optional: Scroll background list to keep item in view
+                        // document.getElementById('article-card-' + nextArticle.id)?.scrollIntoView({block: 'center', behavior: 'smooth'});
+                    }
+                }
+
+                // Actions for the ACTIVE article (modal open)
+                if (this.isModalOpen && this.modalArticle) {
+                    if (key === 'f') {
+                        this.toggleFavorite(this.modalArticle);
+                    }
+                    if (key === 'b') { // B for Bookmark/Read Later
+                        this.toggleBookmark(this.modalArticle);
+                    }
+                    if (key === 'v') { // V for View Original
+                         window.open(this.modalArticle.link, '_blank');
+                    }
+                }
+            });
+        },
+
+        // --- YouTube API Loader ---
         loadYouTubeApi() {
             if (window.YT) {
                 this.isYtApiReady = true;
@@ -173,10 +226,21 @@ document.addEventListener('alpine:init', () => {
             this.isLoadingArticles = true;
 
             let url = `/api/articles?page=${this.currentPage}`;
+            
+            // 1. Append Unread Filter
+            if (this.unreadOnly) {
+                url += '&unread_only=true';
+            }
+
+            // 2. Append View Type (Always required)
             url += `&view_type=${this.currentView.type}`;
+
+            // 3. Append View ID (If specific view)
             if (this.currentView.id) {
                 url += `&view_id=${this.currentView.id}`;
             }
+
+            // 4. Append Author (If author view)
             if (this.currentView.type === 'author' && this.currentView.title) {
                  url += `&author_name=${encodeURIComponent(this.currentView.title)}`;
             }
@@ -298,6 +362,11 @@ document.addEventListener('alpine:init', () => {
             this.searchQuery = '';
             this.fetchArticles(true);
             this.isMobileMenuOpen = false;
+        },
+
+        toggleUnreadOnly() {
+            this.unreadOnly = !this.unreadOnly;
+            this.fetchArticles(true); // true = reset to page 1
         },
         
         get layoutMode() {
@@ -640,6 +709,27 @@ document.addEventListener('alpine:init', () => {
                 }
             }
         },
+
+        // --- NEW: Read/Unread Logic ---
+        async markAsRead(article) {
+            if (article.is_read) return;
+            article.is_read = true; // Optimistic UI update
+            await this.apiPost(`/api/article/${article.id}/mark_read`);
+        },
+
+        async markAllRead() {
+            if (!confirm('Mark all visible articles as read?')) return;
+            
+            const payload = {
+                view_type: this.currentView.type,
+                view_id: this.currentView.id
+            };
+            
+            await this.apiPost('/api/mark_all_read', payload);
+            
+            // Update local state to reflect change immediately
+            this.articles.forEach(a => a.is_read = true);
+        },
         
         // --- Modal & Autoplay ---
         openModal(article) {
@@ -648,6 +738,9 @@ document.addEventListener('alpine:init', () => {
                 try { this.ytPlayer.destroy(); } catch(e) {}
                 this.ytPlayer = null;
             }
+
+            // *** NEW: Mark as read when opening ***
+            this.markAsRead(article); 
 
             // 1. Track the current index for "Next" logic
             const currentList = this.filteredArticles;

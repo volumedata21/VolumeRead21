@@ -37,7 +37,6 @@ custom_stream_feeds = db.Table('custom_stream_feeds',
 class Category(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False, unique=True)
-    # *** NEW: Layout Style (default, feed, threads, videos) ***
     layout_style = db.Column(db.String(20), nullable=True) 
     feeds = db.relationship('Feed', backref='category', lazy='dynamic')
 
@@ -51,7 +50,6 @@ class Feed(db.Model):
     exclude_from_all = db.Column(db.Boolean, default=False, nullable=False)
     etag = db.Column(db.String(200), nullable=True)
     last_modified = db.Column(db.String(200), nullable=True)
-    # *** NEW: Layout Style ***
     layout_style = db.Column(db.String(20), nullable=True)
     custom_streams = db.relationship('CustomStream', secondary=custom_stream_feeds, lazy='dynamic', back_populates='feeds')
 
@@ -66,12 +64,12 @@ class Article(db.Model):
     published = db.Column(db.DateTime(timezone=False))
     is_favorite = db.Column(db.Boolean, default=False)
     is_read_later = db.Column(db.Boolean, default=False)
+    is_read = db.Column(db.Boolean, default=False) # <--- NEW COLUMN
     feed_id = db.Column(db.Integer, db.ForeignKey('feed.id'), nullable=False)
 
 class CustomStream(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False, unique=True)
-    # *** NEW: Layout Style ***
     layout_style = db.Column(db.String(20), nullable=True)
     feeds = db.relationship('Feed', secondary=custom_stream_feeds, lazy='dynamic', back_populates='custom_streams')
     deleted_at = db.Column(db.DateTime(timezone=False), nullable=True)
@@ -156,10 +154,7 @@ def _update_articles_for_feed(feed_instance, feed_data):
         if Article.query.filter_by(link=entry.link).first():
             continue
 
-        # --- IMPROVED DATE PARSING ---
         published_time = None
-        
-        # 1. Try standard parsed fields first
         for field in ['published_parsed', 'updated_parsed', 'created_parsed']:
             if field in entry and entry[field]:
                 try:
@@ -167,26 +162,20 @@ def _update_articles_for_feed(feed_instance, feed_data):
                     break
                 except ValueError: pass
         
-        # 2. If standard parsing failed, try raw strings for TikTok/Custom formats
         if not published_time:
-            # Common raw fields where strings might live
             raw_date = entry.get('published') or entry.get('updated') or entry.get('created')
             if raw_date:
-                # Try 'YYYY-MM-DD' (e.g. '2020-10-20')
                 try:
                     published_time = datetime.datetime.strptime(raw_date, '%Y-%m-%d')
                 except ValueError:
-                    # Try 'MM-DD' (e.g. '09-05'), assume current year
                     try:
                         temp_time = datetime.datetime.strptime(raw_date, '%m-%d')
                         published_time = temp_time.replace(year=datetime.datetime.now().year)
                     except ValueError:
                         pass
 
-        # 3. Final Fallback
         if not published_time:
             published_time = datetime.datetime.now()
-
 
         content_html = next((item['value'] for item in entry.get('content', []) if 'value' in item), entry.get('summary', ''))
         summary_text = clean_text(entry.get('summary', ''), strip_html_tags=True)
@@ -195,7 +184,6 @@ def _update_articles_for_feed(feed_instance, feed_data):
         
         smart_summary = smart_truncate(summary_text, length=300)
         
-        # Title Extraction
         raw_title = entry.get('title', 'Untitled Article')
         clean_title = clean_text(raw_title, strip_html_tags=True)
         generic_titles = ['tik tok', 'tiktok', 'video', 'untitled article', 'untitled']
@@ -206,7 +194,6 @@ def _update_articles_for_feed(feed_instance, feed_data):
             if text_content:
                 clean_title = smart_truncate(text_content, length=100)
 
-        # Thumbnail Extraction
         image_url_found = None
         if is_youtube_feed:
             try:
@@ -228,20 +215,15 @@ def _update_articles_for_feed(feed_instance, feed_data):
         if not image_url_found:
             image_url_found = find_image_url(entry)
         
-        # Pinterest Hi-Res Fix
         if image_url_found and 'i.pinimg.com' in image_url_found:
             hi_res_url = re.sub(r'\/(\d+x|236x)\/', '/originals/', image_url_found)
             if hi_res_url == image_url_found:
                 hi_res_url = re.sub(r'\/(\d+x|236x)\/', '/736x/', image_url_found)
             image_url_found = hi_res_url if hi_res_url != image_url_found else image_url_found
 
-        # Behance Hi-Res Fix
         if image_url_found and 'behance.net' in image_url_found:
-            # Behance feeds usually give /projects/404/ (404px width)
-            # We try to upgrade to /projects/max_1200/ for better quality
             image_url_found = image_url_found.replace('/projects/404/', '/projects/max_1200/')
         
-        # Author Logic
         author_name = clean_text(entry.get('author', ''), strip_html_tags=True)
         if not author_name:
             author_name = clean_text(entry.get('dc_creator', ''), strip_html_tags=True)
@@ -273,7 +255,6 @@ def get_category_data(category):
     return {'id': category.id, 'name': category.name, 'layout_style': category.layout_style}
 
 def get_rss_bridge_feed(base_url, target_url):
-    """Queries RSS-Bridge to find or generate a feed URL."""
     try:
         find_url = f"{base_url}/?action=findbridge&url={quote(target_url)}"
         response = requests.get(find_url, timeout=10)
@@ -299,9 +280,20 @@ def get_rss_bridge_feed(base_url, target_url):
         return None
 
 def initialize_database():
-    """Ensures tables and default category exist."""
     with app.app_context():
         db.create_all()
+        
+        # --- NEW: Manual Column Migration Check ---
+        # This ensures existing users get the 'is_read' column without deleting their DB
+        inspector = db.inspect(db.engine)
+        columns = [c['name'] for c in inspector.get_columns('article')]
+        if 'is_read' not in columns:
+            print("Migrating database: Adding 'is_read' column to Article table...")
+            with db.engine.connect() as conn:
+                conn.execute(db.text("ALTER TABLE article ADD COLUMN is_read BOOLEAN DEFAULT 0"))
+                conn.commit()
+        # ------------------------------------------
+
         if not Category.query.filter_by(name='Uncategorized').first():
             db.session.add(Category(name='Uncategorized'))
             db.session.commit()
@@ -315,7 +307,6 @@ def home():
 
 @app.route('/api/data')
 def get_data():
-    """Returns initial app state."""
     categories = Category.query.order_by(Category.name).all()
     active_feeds = Feed.query.filter(Feed.deleted_at.is_(None)).all()
     removed_feeds = Feed.query.filter(Feed.deleted_at.isnot(None)).order_by(Feed.deleted_at.desc()).all()
@@ -334,14 +325,19 @@ def get_data():
 
 @app.route('/api/articles')
 def get_articles():
-    """Returns paginated articles based on view context."""
     page = request.args.get('page', 1, type=int)
     per_page = request.args.get('per_page', 24, type=int)
     view_type = request.args.get('view_type', 'all')
     view_id = request.args.get('view_id', type=int)
     author_name = request.args.get('author_name', type=str)
+    # *** NEW: Get unread_only param ***
+    unread_only = request.args.get('unread_only') == 'true'
 
     query = Article.query.order_by(Article.published.desc())
+    
+    # *** NEW: Apply Filter ***
+    if unread_only:
+        query = query.filter(Article.is_read == False)
     is_reddit_source = False
 
     if view_type == 'feed' and view_id:
@@ -349,44 +345,27 @@ def get_articles():
         feed = Feed.query.get(view_id)
         if feed and ('reddit.com' in feed.url or 'lemmy.world' in feed.url):
             is_reddit_source = True
-    
-    # --- FIX: Added Missing Category View Logic ---
     elif view_type == 'category' and view_id:
         query = query.join(Feed).filter(Feed.category_id == view_id)
-
-    # --- FIX: Added Missing Custom Stream View Logic ---
     elif view_type == 'custom_stream' and view_id:
         query = query.join(Feed).join(custom_stream_feeds).filter(custom_stream_feeds.c.custom_stream_id == view_id)
-
-    # --- FIX: Added Missing Favorites View Logic ---
     elif view_type == 'favorites':
         query = query.filter(Article.is_favorite == True)
-
-    # --- FIX: Added Missing Read Later View Logic ---
     elif view_type == 'readLater':
         query = query.filter(Article.is_read_later == True)
-
-    # --- FIX: Added Missing Author View Logic ---
     elif view_type == 'author' and author_name:
         query = query.filter(Article.author == author_name)
-        
-    # --- NEW: Sites View (Everything except Videos and Threads) ---
     elif view_type == 'sites':
-        # Filter OUT feeds that match video or thread domains
         query = query.join(Feed).filter(
             ~or_(
-                # Video domains
                 Feed.url.like('%youtube.com%'),
                 Feed.url.like('%vimeo.com%'),
                 Feed.url.like('%dailymotion.com%'),
                 Feed.url.like('%tiktok%'),
-                # Thread domains
                 Feed.url.like('%reddit.com%'),
                 Feed.url.like('%lemmy.world%')
             )
         )
-    # --- END: Sites View ---
-
     elif view_type == 'videos':
         query = query.join(Feed).filter(
             or_(
@@ -399,7 +378,6 @@ def get_articles():
     elif view_type == 'threads':
         query = query.join(Feed).filter(or_(Feed.url.like('%reddit.com%'), Feed.url.like('%lemmy.world%')))
         is_reddit_source = True
-
     elif view_type == 'all':
         query = query.join(Feed).filter(Feed.exclude_from_all == False)
     
@@ -411,10 +389,17 @@ def get_articles():
     return jsonify({
         'articles': [
             {
-                'id': a.id, 'title': a.title, 'link': a.link, 'summary': a.summary,
-                'full_content': a.full_content, 'image_url': a.image_url, 'author': a.author,
+                'id': a.id, 
+                'title': a.title, 
+                'link': a.link, 
+                'summary': a.summary,
+                'full_content': a.full_content, 
+                'image_url': a.image_url, 
+                'author': a.author,
                 'published': a.published.isoformat() if a.published else datetime.datetime.now().isoformat(),
-                'is_favorite': a.is_favorite, 'is_read_later': a.is_read_later,
+                'is_favorite': a.is_favorite, 
+                'is_read_later': a.is_read_later,
+                'is_read': a.is_read,  # <--- NEW FIELD
                 'feed_title': a.feed.title if a.feed else 'Unknown Feed', 
                 'feed_id': a.feed_id
             } for a in pagination.items
@@ -425,9 +410,41 @@ def get_articles():
         'is_reddit_source': is_reddit_source
     })
 
+@app.route('/api/article/<int:article_id>/mark_read', methods=['POST'])
+def mark_read(article_id):
+    article = Article.query.get_or_404(article_id)
+    article.is_read = True
+    db.session.commit()
+    return jsonify({'success': True})
+
+@app.route('/api/mark_all_read', methods=['POST'])
+def mark_all_read():
+    """Marks articles as read based on the current context (view_type/id)."""
+    data = request.get_json()
+    view_type = data.get('view_type', 'all')
+    view_id = data.get('view_id')
+    
+    query = db.session.query(Article).filter(Article.is_read == False)
+    
+    # Apply same filters as get_articles
+    if view_type == 'feed' and view_id:
+        query = query.filter(Article.feed_id == view_id)
+    elif view_type == 'category' and view_id:
+        query = query.join(Feed).filter(Feed.category_id == view_id)
+    elif view_type == 'custom_stream' and view_id:
+        query = query.join(Feed).join(custom_stream_feeds).filter(custom_stream_feeds.c.custom_stream_id == view_id)
+    elif view_type == 'all':
+        query = query.join(Feed).filter(Feed.exclude_from_all == False)
+    # (Add other filters like sites/videos if desired, generally 'all' or 'feed' is most common)
+
+    # Bulk update
+    updated_count = query.update({Article.is_read: True}, synchronize_session=False)
+    db.session.commit()
+    
+    return jsonify({'success': True, 'updated_count': updated_count})
+
 @app.route('/api/add_feed', methods=['POST'])
 def add_feed():
-    """Adds a new feed with auto-discovery and URL correction."""
     data = request.get_json()
     url = (data.get('url') or '').strip()
     category_id = data.get('category_id')
@@ -435,16 +452,12 @@ def add_feed():
     if not url:
         return jsonify({'error': 'URL is required'}), 400
 
-    # --- URL Normalization Handlers ---
-    
-    # Reddit
     try:
         reddit_match = re.match(r'(?:https?:\/\/)?(?:www\.)?reddit\.com\/r\/([a-zA-Z0-9_]+)\/?.*', url, re.IGNORECASE)
         if reddit_match:
             url = f'https://www.reddit.com/r/{reddit_match.group(1)}/.rss'
     except Exception: pass
 
-    # Pinterest
     try:
         if 'pinterest.com' in url and not url.endswith('/feed.rss'):
             pinterest_match = re.match(r'(?:https?:\/\/)?(?:www\.)?pinterest\.com\/([a-zA-Z0-9_-]+)\/?.*', url, re.IGNORECASE)
@@ -452,7 +465,6 @@ def add_feed():
                 url = f'https://www.pinterest.com/{pinterest_match.group(1)}/feed.rss'
     except Exception: pass
 
-    # Vimeo
     try:
         if 'vimeo.com' in url and 'rss' not in url:
             vimeo_match = re.match(r'(?:https?:\/\/)?(?:www\.)?vimeo\.com\/([a-zA-Z0-9_-]+)\/?$', url, re.IGNORECASE)
@@ -460,7 +472,6 @@ def add_feed():
                 url = f'https://vimeo.com/{vimeo_match.group(1)}/videos/rss'
     except Exception: pass
 
-    # Dailymotion
     try:
         if 'dailymotion.com' in url and 'rss' not in url:
             dm_match = re.match(r'(?:https?:\/\/)?(?:www\.)?dailymotion\.com\/([a-zA-Z0-9_-]+)\/?.*', url, re.IGNORECASE)
@@ -468,7 +479,6 @@ def add_feed():
                 url = f'https://www.dailymotion.com/rss/user/{dm_match.group(1)}'
     except Exception: pass
 
-    # TikTok
     try:
         if 'tiktok.com' in url:
             rss_bridge_base_url = os.environ.get('RSS_BRIDGE_URL')
@@ -485,14 +495,12 @@ def add_feed():
                     url = f"{rss_bridge_base_url}/?{urlencode(params)}"
     except Exception: pass
     
-    # Lemmy
     try:
         lemmy_match = re.match(r'(?:https?:\/\/)?(?:www\.)?lemmy\.world\/c\/([a-zA-Z0-9_]+)(?:\/)?.*', url, re.IGNORECASE)
         if lemmy_match and '/feeds/' not in url:
             url = f'https://lemmy.world/feeds/c/{lemmy_match.group(1)}.xml'
     except Exception: pass
 
-    # Behance
     try:
         if 'behance.net' in url and 'feeds' not in url:
             behance_match = re.match(r'(?:https?:\/\/)?(?:www\.)?behance\.net\/([^\/\?]+)', url, re.IGNORECASE)
@@ -500,18 +508,14 @@ def add_feed():
                 url = f'https://www.behance.net/feeds/user?username={behance_match.group(1)}'
     except Exception: pass
 
-    # DeviantArt
     try:
         if 'deviantart.com' in url and 'backend.deviantart.com' not in url:
-            # Matches profile URLs e.g. deviantart.com/username
             da_match = re.match(r'(?:https?:\/\/)?(?:www\.)?deviantart\.com\/([^\/\?]+)', url, re.IGNORECASE)
             if da_match:
                 username = da_match.group(1)
-                # q=by:{username} sort:time meta:all
                 url = f'https://backend.deviantart.com/rss.xml?type=deviation&q=by%3A{username}+sort%3Atime+meta%3Aall'
     except Exception: pass
 
-    # Ensure Category
     target_category = Category.query.get(category_id) if category_id else None
     if not target_category:
         target_category = Category.query.filter_by(name='Uncategorized').first()
@@ -528,12 +532,10 @@ def add_feed():
         if not feed_url.startswith(('http://', 'https://')):
             feed_url = 'https://' + feed_url
 
-        # 1. Direct Parse
         parsed_data = feedparser.parse(feed_url, request_headers=headers)
         if parsed_data.feed and (parsed_data.entries or parsed_data.feed.get('title')):
             feed_data = parsed_data
         else:
-            # 2. Common Suffixes
             base_url = feed_url.rstrip('/')
             for suffix in ['/feed', '/atom.xml', '/rss.xml', '/rss']:
                 test_url = base_url + suffix
@@ -543,7 +545,6 @@ def add_feed():
                     feed_url = test_url
                     break
             
-            # 3. HTML Discovery
             if not feed_data:
                 try:
                     response = requests.get(feed_url, headers=headers, timeout=5)
@@ -558,7 +559,6 @@ def add_feed():
                             feed_data = feedparser.parse(feed_url, request_headers=headers)
                 except Exception: pass
 
-        # 4. RSS-Bridge Fallback
         if not feed_data:
             rss_bridge_base_url = os.environ.get('RSS_BRIDGE_URL')
             if rss_bridge_base_url:
@@ -621,7 +621,6 @@ def restore_feed(feed_id):
     return jsonify({'success': True}), 200
 
 def _fetch_one_feed(feed):
-    """Worker function for parallel feed refreshing."""
     try:
         headers = { 'User-Agent': 'VolumeRead21-Feed-Refresher/1.0' }
         feed_data = feedparser.parse(feed.url, request_headers=headers, etag=feed.etag, modified=feed.last_modified)
@@ -683,7 +682,6 @@ def update_feed_settings(feed_id):
         feed.title = data.get('name').strip()
     if data.get('exclude_from_all') is not None:
         feed.exclude_from_all = bool(data.get('exclude_from_all'))
-    # *** NEW: Update Layout Style ***
     if 'layout_style' in data:
         feed.layout_style = data.get('layout_style')
         
@@ -742,7 +740,6 @@ def update_category_settings(category_id):
             if feed and feed.category_id == category_id:
                 feed.exclude_from_all = bool(state)
     
-    # *** NEW: Update Layout Style ***
     if 'layout_style' in data:
         category.layout_style = data.get('layout_style')
                 
@@ -781,14 +778,12 @@ def restore_stream(stream_id):
     db.session.commit()
     return jsonify({'success': True})
 
-# *** NEW: Update Stream Settings Route ***
 @app.route('/api/custom_stream/<int:stream_id>', methods=['PUT'])
 def update_stream_settings(stream_id):
     data = request.get_json()
     stream = CustomStream.query.get_or_404(stream_id)
     
     if data.get('name'):
-        # Ensure name is unique if changed
         new_name = data.get('name').strip()
         if new_name != stream.name:
              if CustomStream.query.filter_by(name=new_name).first():
@@ -834,12 +829,10 @@ def toggle_bookmark(article_id):
     db.session.commit()
     return jsonify({'is_read_later': article.is_read_later})
 
-# *** NEW: OPML Export Route ***
 @app.route('/api/export_opml')
 def export_opml():
     categories = Category.query.order_by(Category.name).all()
     
-    # Build OPML XML structure
     root = ET.Element('opml', version="1.0")
     head = ET.SubElement(root, 'head')
     ET.SubElement(head, 'title').text = 'VolumeRead21 Feeds Export'
@@ -847,9 +840,7 @@ def export_opml():
     
     body = ET.SubElement(root, 'body')
     
-    # Group feeds by category
     for category in categories:
-        # Create outline for category
         cat_outline = ET.SubElement(body, 'outline', text=category.name, title=category.name)
         
         feeds = category.feeds.all()
@@ -857,15 +848,13 @@ def export_opml():
             continue
             
         for feed in feeds:
-            # Create outline for feed
             ET.SubElement(cat_outline, 'outline', 
                           type="rss", 
                           text=feed.title, 
                           title=feed.title, 
                           xmlUrl=feed.url, 
-                          htmlUrl=feed.url) # htmlUrl usually main site, but feed url is safe fallback
+                          htmlUrl=feed.url) 
 
-    # Generate XML string
     xml_str = '<?xml version="1.0" encoding="UTF-8"?>\n' + ET.tostring(root, encoding='unicode')
     
     response = make_response(xml_str)
@@ -873,7 +862,6 @@ def export_opml():
     response.headers["Content-Type"] = "application/xml"
     return response
 
-# *** NEW: OPML Import Route ***
 @app.route('/api/import_opml', methods=['POST'])
 def import_opml():
     if 'file' not in request.files:
@@ -891,19 +879,14 @@ def import_opml():
         added_feeds = 0
         added_categories = 0
         
-        # Helper to process an outline element
         def process_outline(outline, current_category_id=None):
             nonlocal added_feeds, added_categories
             
             text = outline.get('text') or outline.get('title') or 'Untitled'
             xml_url = outline.get('xmlUrl')
-            type_attr = outline.get('type')
-
-            # Case 1: It's a Feed (has xmlUrl)
+            
             if xml_url:
-                # Check if exists
                 if not Feed.query.filter_by(url=xml_url).first():
-                    # Ensure category exists (use current or Default)
                     target_cat_id = current_category_id
                     if not target_cat_id:
                         uncat = Category.query.filter_by(name='Uncategorized').first()
@@ -917,30 +900,22 @@ def import_opml():
                     db.session.add(new_feed)
                     added_feeds += 1
 
-            # Case 2: It's a Category (no xmlUrl, has children)
-            elif list(outline): # has children
-                # Check/Create Category
+            elif list(outline): 
                 category = Category.query.filter_by(name=text).first()
                 if not category:
                     category = Category(name=text)
                     db.session.add(category)
-                    db.session.commit() # Commit to get ID
+                    db.session.commit()
                     added_categories += 1
                 
-                # Recursively process children
                 for child in outline:
                     process_outline(child, category.id)
 
-        # Start processing from body
         if body is not None:
             for outline in body:
                 process_outline(outline)
         
         db.session.commit()
-        
-        # Trigger a background refresh for the new feeds (optional, but good UX)
-        # For simplicity, we just return success and let the frontend trigger refresh logic if needed
-        
         return jsonify({
             'success': True, 
             'message': f'Successfully imported {added_feeds} feeds and {added_categories} categories.'
@@ -953,7 +928,27 @@ def import_opml():
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
 
-# --- Main Execution ---
+# *** NEW: Database Cleanup Route ***
+@app.route('/api/maintenance/cleanup', methods=['POST'])
+def cleanup_articles():
+    """Deletes articles older than 'days' (default 30) that are NOT favorites or bookmarks."""
+    days = request.get_json().get('days', 30)
+    cutoff_date = datetime.datetime.now() - datetime.timedelta(days=days)
+    
+    try:
+        deleted_count = Article.query.filter(
+            Article.published < cutoff_date,
+            Article.is_favorite == False,
+            Article.is_read_later == False
+        ).delete(synchronize_session=False)
+        
+        db.session.commit()
+        db.session.execute(db.text("VACUUM"))
+        
+        return jsonify({'success': True, 'deleted_count': deleted_count, 'message': f"Cleaned {deleted_count} old articles."})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
     if 'DATA_DIR' in os.environ and not os.path.exists(data_dir):

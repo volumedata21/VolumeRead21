@@ -7,7 +7,7 @@
     <title>VolumeRead21</title>
 
     <script src="https://cdn.tailwindcss.com?plugins=forms,line-clamp,typography,aspect-ratio"></script>
-    <script src="{{ url_for('static', filename='js/app.js') }}?v=6" defer></script>
+    <script src="{{ url_for('static', filename='js/app.js') }}?v=9" defer></script>
     <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
 
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
@@ -18,6 +18,17 @@
     <link rel="icon" type="image/png" sizes="192x192"
         href="{{ url_for('static', filename='favicon/android-chrome-192x192.png') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+
+    <style>
+        /* This targets any element inside the article reader (.prose) 
+           that has a 'style' attribute and forces it to obey our dark theme.
+        */
+        .prose [style] {
+            background-color: transparent !important;
+            color: inherit !important;
+            border-color: var(--divider-color) !important;
+        }
+    </style>
 
     <script>
         function formatRelativeTime(dateString) {
@@ -105,10 +116,12 @@
                     class="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium hover:bg-[var(--bg-highlight)]/50"
                     :class="currentView.type === 'videos' ? 'main-nav-selected' : 'text-[var(--text-main)]'"><i
                         class="material-icons" style="font-size:20px;">videocam</i> Videos</a>
+                
                 <a href="#" @click.prevent="setView('threads')"
                     class="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium hover:bg-[var(--bg-highlight)]/50"
                     :class="currentView.type === 'threads' ? 'main-nav-selected' : 'text-[var(--text-main)]'"><i
-                        class="material-icons" style="font-size:20px;">forum</i> Threads</a>
+                        class="material-icons" style="font-size:20px;">forum</i> Posts</a>
+                
                 <a href="#" @click.prevent="setView('favorites')"
                     class="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium hover:bg-[var(--bg-highlight)]/50"
                     :class="currentView.type === 'favorites' ? 'main-nav-selected' : 'text-[var(--text-main)]'"><i
@@ -501,7 +514,7 @@
                         </template>
 
                         <template x-if="layoutMode !== 'list'">
-                            <div class="flex flex-col overflow-hidden rounded-lg bg-[var(--bg-medium)] shadow-lg group/card relative transition-opacity duration-300"
+                            <div class="flex flex-col h-full overflow-hidden rounded-lg bg-[var(--bg-medium)] shadow-lg group/card relative transition-opacity duration-300"
                                 :class="{ 'opacity-40': article.is_read, 'opacity-100': !article.is_read }">
 
                                 <template x-if="article.image_url || layoutMode === 'videos'">
@@ -528,67 +541,63 @@
                                                     </div>
                                                 </template>
 
-                                                <div
-                                                    class="hidden h-64 w-full items-center justify-center relative z-10 bg-[var(--bg-darkest)] text-[var(--text-secondary)]">
+                                                <div class="hidden h-64 w-full items-center justify-center relative z-10 bg-[var(--bg-darkest)] text-[var(--text-secondary)]">
                                                     (Image failed)
                                                 </div>
                                             </div>
                                         </template>
 
                                         <template x-if="!article.image_url && layoutMode === 'videos'">
-                                            <div
-                                                class="flex h-full w-full items-center justify-center bg-[var(--bg-darkest)] text-[var(--text-secondary)]">
-                                                (No Image)</div>
+                                            <div class="flex h-full w-full items-center justify-center bg-[var(--bg-darkest)] text-[var(--text-secondary)]">
+                                                (No Image)
+                                            </div>
                                         </template>
                                     </a>
                                 </template>
 
-                                <div class="flex flex-1 flex-col justify-between p-5">
+                                <div class="flex flex-1 flex-col p-5 pb-2">
                                     <div class="flex-1">
                                         <h3 class="font-semibold text-[var(--text-bright)]"
                                             :class="layoutMode === 'videos' ? 'text-base' : 'text-xl'">
                                             <a href="#" @click.prevent="openModal(article)" class="hover:underline"
                                                 x-text="article.title"></a>
                                         </h3>
+                                        
                                         <div class="mt-3 text-sm text-[var(--text-main)] prose prose-sm prose-invert max-w-none card-preview-content break-words leading-relaxed"
                                             :class="article.image_url && layoutMode !== 'videos' ? 'line-clamp-3' : 'line-clamp-[8]'"
                                             x-show="layoutMode !== 'videos'" x-html="article.full_content || article.summary">
                                         </div>
                                     </div>
-                                    <div class="mt-4 flex items-center justify-between text-sm text-[var(--text-secondary)]">
-                                        <template x-if="layoutMode === 'videos'">
-                                            <a href="#" @click.prevent="setView('feed', article.feed_id)"
-                                                class="inline-block rounded-full px-3 py-1 text-xs font-medium"
-                                                :style="{ backgroundColor: 'var(--feed-pill-bg)', color: 'var(--feed-pill-text)', '&:hover': { backgroundColor: 'var(--feed-pill-hover-bg)' }}"
-                                                x-text="article.feed_title"></a>
-                                        </template>
-
-                                        <button x-show="layoutMode !== 'videos'"
-                                            @click.prevent="setView('author', null, article.author)"
-                                            class="author-pill truncate" :class="getAuthorClass(article)"
-                                            :disabled="!article.author || article.author === 'Unknown Author'"
-                                            x-text="article.author || 'Unknown Author'">
-                                        </button>
-
-                                        <span x-text="formatRelativeTime(article.published)"></span>
-                                    </div>
                                 </div>
-                                <div
-                                    class="flex items-center justify-end gap-2 border-t border-[var(--divider-color)] p-3 px-5">
-                                    <button class="p-1" @click.prevent="toggleFavorite(article)"
-                                        :class="article.is_favorite ? 'fav-selected' : 'text-[var(--text-secondary)] hover:text-[var(--text-highlight)]'"><i
-                                            class="material-icons" style="font-size: 20px;"
-                                            x-text="article.is_favorite ? 'star' : 'star_border'"></i></button>
-                                    <button class="p-1" @click.prevent="toggleBookmark(article)"
-                                        :class="article.is_read_later ? 'text-[var(--text-highlight)]' : 'text-[var(--text-secondary)] hover:text-[var(--text-highlight)]'"><i
-                                            class="material-icons" style="font-size: 20px;"
-                                            x-text="article.is_read_later ? 'bookmark' : 'bookmark_border'"></i></button>
-                                    <button class="p-1 text-[var(--text-secondary)] hover:text-[var(--text-highlight)]"
-                                        @click="shareArticle(article)"><span class="material-icons" style="font-size: 20px;"
-                                            x-text="copiedArticleId === article.id ? 'check' : 'share'"></span></button>
-                                    <a :href="article.link" target="_blank"
-                                        class="p-1 text-[var(--text-secondary)] hover:text-[var(--text-highlight)]"><i
-                                            class="material-icons" style="font-size: 20px;">open_in_new</i></a>
+
+                                <div class="mt-auto flex items-center justify-between p-4 pt-2 border-t border-white/5 bg-[var(--bg-darkest)]/20">
+                                    <div class="flex items-center gap-2 overflow-hidden min-w-0 mr-2">
+                                        <button @click.prevent="setView('feed', article.feed_id)"
+                                            class="truncate text-xs font-medium text-[var(--text-highlight)] hover:underline"
+                                            x-text="article.feed_title">
+                                        </button>
+                                        <span class="text-xs text-[var(--text-secondary)] whitespace-nowrap">&middot;</span>
+                                        <span class="text-xs text-[var(--text-secondary)] whitespace-nowrap" x-text="formatRelativeTime(article.published)"></span>
+                                    </div>
+
+                                    <div class="flex items-center gap-2 shrink-0">
+                                        <button class="p-1" @click.prevent="toggleFavorite(article)"
+                                            :class="article.is_favorite ? 'fav-selected' : 'text-[var(--text-secondary)] hover:text-[var(--text-highlight)]'">
+                                            <i class="material-icons" style="font-size: 20px;" x-text="article.is_favorite ? 'star' : 'star_border'"></i>
+                                        </button>
+                                        <button class="p-1" @click.prevent="toggleBookmark(article)"
+                                            :class="article.is_read_later ? 'text-[var(--text-highlight)]' : 'text-[var(--text-secondary)] hover:text-[var(--text-highlight)]'">
+                                            <i class="material-icons" style="font-size: 20px;" x-text="article.is_read_later ? 'bookmark' : 'bookmark_border'"></i>
+                                        </button>
+                                        <button class="p-1 text-[var(--text-secondary)] hover:text-[var(--text-highlight)]"
+                                            @click="shareArticle(article)">
+                                            <span class="material-icons" style="font-size: 20px;" x-text="copiedArticleId === article.id ? 'check' : 'share'"></span>
+                                        </button>
+                                        <a :href="article.link" target="_blank"
+                                            class="p-1 text-[var(--text-secondary)] hover:text-[var(--text-highlight)]">
+                                            <i class="material-icons" style="font-size: 20px;">open_in_new</i>
+                                        </a>
+                                    </div>
                                 </div>
                             </div>
                         </template>
@@ -826,22 +835,58 @@
 
                     <hr class="border-[var(--divider-color)]" x-show="editModal.type !== 'global'">
 
-                    <div>
-                        <h3 class="block text-sm font-medium text-[var(--text-bright)]">Settings</h3>
+                    <div class="mt-4 mb-6">
+                        <label class="block text-xs font-medium text-[var(--text-secondary)] mb-2 uppercase tracking-wider">View Style</label>
+                        
+                        <div class="grid grid-cols-2 gap-2">
+                            <button type="button" @click="editModal.layout_style = 'default'"
+                                class="col-span-2 flex items-center justify-center gap-2 rounded-md border px-3 py-2 text-sm font-medium transition-all"
+                                :class="editModal.layout_style === 'default' 
+                                    ? 'bg-[var(--bg-highlight)] border-[var(--text-highlight)] text-[var(--text-bright)] shadow-[0_0_10px_rgba(95,228,253,0.1)]' 
+                                    : 'bg-[var(--bg-darkest)] border-[var(--divider-color)] text-[var(--text-secondary)] hover:border-[var(--text-main)] hover:text-[var(--text-main)]'">
+                                <i class="material-icons" style="font-size: 18px;">hdr_auto</i>
+                                Auto View
+                            </button>
 
-                        <div class="mt-3 mb-4">
-                            <label class="block text-xs font-medium text-[var(--text-secondary)] mb-1">View
-                                Style</label>
-                            <select x-model="editModal.layout_style"
-                                class="w-full rounded-md border-[var(--divider-color)] bg-[var(--bg-darkest)] text-sm text-[var(--text-main)] focus:border-[var(--highlight-ring)] focus:ring-[var(--highlight-ring)]">
-                                <option value="default">Auto (Default)</option>
-                                <option value="standard">Feed (Standard Grid)</option>
-                                <option value="list">List (Compact Row)</option>
-                                <option value="videos">Videos (Thumbnail Grid)</option>
-                                <option value="threads">Threads (Single Column)</option>
-                            </select>
+                            <button type="button" @click="editModal.layout_style = 'standard'"
+                                class="flex items-center justify-center gap-2 rounded-md border px-3 py-2 text-sm font-medium transition-all"
+                                :class="editModal.layout_style === 'standard' 
+                                    ? 'bg-[var(--bg-highlight)] border-[var(--text-highlight)] text-[var(--text-bright)]' 
+                                    : 'bg-[var(--bg-darkest)] border-[var(--divider-color)] text-[var(--text-secondary)] hover:border-[var(--text-main)] hover:text-[var(--text-main)]'">
+                                <i class="material-icons" style="font-size: 18px;">grid_view</i>
+                                Grid View
+                            </button>
+
+                            <button type="button" @click="editModal.layout_style = 'list'"
+                                class="flex items-center justify-center gap-2 rounded-md border px-3 py-2 text-sm font-medium transition-all"
+                                :class="editModal.layout_style === 'list' 
+                                    ? 'bg-[var(--bg-highlight)] border-[var(--text-highlight)] text-[var(--text-bright)]' 
+                                    : 'bg-[var(--bg-darkest)] border-[var(--divider-color)] text-[var(--text-secondary)] hover:border-[var(--text-main)] hover:text-[var(--text-main)]'">
+                                <i class="material-icons" style="font-size: 18px;">view_agenda</i>
+                                List View
+                            </button>
+
+                            <button type="button" @click="editModal.layout_style = 'videos'"
+                                class="flex items-center justify-center gap-2 rounded-md border px-3 py-2 text-sm font-medium transition-all"
+                                :class="editModal.layout_style === 'videos' 
+                                    ? 'bg-[var(--bg-highlight)] border-[var(--text-highlight)] text-[var(--text-bright)]' 
+                                    : 'bg-[var(--bg-darkest)] border-[var(--divider-color)] text-[var(--text-secondary)] hover:border-[var(--text-main)] hover:text-[var(--text-main)]'">
+                                <i class="material-icons" style="font-size: 18px;">movie</i>
+                                Video View
+                            </button>
+
+                            <button type="button" @click="editModal.layout_style = 'threads'"
+                                class="flex items-center justify-center gap-2 rounded-md border px-3 py-2 text-sm font-medium transition-all"
+                                :class="editModal.layout_style === 'threads' 
+                                    ? 'bg-[var(--bg-highlight)] border-[var(--text-highlight)] text-[var(--text-bright)]' 
+                                    : 'bg-[var(--bg-darkest)] border-[var(--divider-color)] text-[var(--text-secondary)] hover:border-[var(--text-main)] hover:text-[var(--text-main)]'">
+                                <i class="material-icons" style="font-size: 18px;">article</i>
+                                Post View
+                            </button>
                         </div>
+                    </div>
 
+                    <div>
                         <template x-if="editModal.type === 'feed'">
                             <label class="mt-2 flex items-center space-x-2 p-1">
                                 <input type="checkbox" x-model="editModalFeedStates[editModal.id]"

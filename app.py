@@ -620,17 +620,34 @@ def restore_feed(feed_id):
     db.session.commit()
     return jsonify({'success': True}), 200
 
-def _fetch_one_feed(feed):
+def _fetch_one_feed(args):
+    """Worker function for parallel feed refreshing. args is (feed, force_refresh)"""
+    feed, force_refresh = args
     try:
-        headers = { 'User-Agent': 'VolumeRead21-Feed-Refresher/1.0' }
-        feed_data = feedparser.parse(feed.url, request_headers=headers, etag=feed.etag, modified=feed.last_modified)
+        # Use a real Browser User-Agent to avoid blocking
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        }
         
-        if feed_data.status == 304: return (feed, None, None, None, None)
-        if feed_data.status >= 400 or feed_data.status == 301:
-            return (feed, None, f"Status {feed_data.status}", None, None)
+        if force_refresh:
+            feed_data = feedparser.parse(feed.url, request_headers=headers, etag=None, modified=None)
+        else:
+            feed_data = feedparser.parse(feed.url, request_headers=headers, etag=feed.etag, modified=feed.last_modified)
+        
+        # *** FIX: Add flush=True to force the log out immediately ***
+        status_code = feed_data.status if hasattr(feed_data, 'status') else 'Unknown'
+        print(f"Checking {feed.title} ({feed.url})... Status: {status_code}", flush=True)
+
+        if hasattr(feed_data, 'status'):
+            if feed_data.status == 304: return (feed, None, None, None, None)
+            # *** FIX: Allow 301/302 Redirects. Only block 4xx/5xx errors ***
+            if feed_data.status >= 400:
+                return (feed, None, f"Status {feed_data.status}", None, None)
             
         return (feed, feed_data, None, feed_data.get('etag'), feed_data.get('modified'))
     except Exception as e:
+        # *** FIX: Print errors too ***
+        print(f"Error checking {feed.title}: {e}", flush=True)
         return (feed, None, str(e), None, None)
 
 @app.route('/api/refresh_all_feeds', methods=['POST'])
@@ -638,11 +655,18 @@ def refresh_all_feeds():
     feeds = Feed.query.filter(Feed.deleted_at.is_(None)).all()
     if not feeds: return jsonify({'success': True, 'added_count': 0})
     
+    # Check if this is a forced refresh from the frontend
+    data = request.get_json() or {}
+    force_refresh = data.get('force', False)
+    
     total_added = 0
     errors = []
 
+    # Map expects a single iterable, so we zip feeds with the force flag
+    feed_args = [(f, force_refresh) for f in feeds]
+
     with ThreadPoolExecutor(max_workers=10) as executor:
-        results = executor.map(_fetch_one_feed, feeds)
+        results = executor.map(_fetch_one_feed, feed_args)
     
     for feed, feed_data, error, new_etag, new_modified in results:
         if error:
@@ -652,6 +676,7 @@ def refresh_all_feeds():
         feed_in_session = db.session.get(Feed, feed.id)
         if not feed_in_session: continue
 
+        # Only update cache headers if we actually got data back
         if new_etag: feed_in_session.etag = new_etag
         if new_modified: feed_in_session.last_modified = new_modified
         

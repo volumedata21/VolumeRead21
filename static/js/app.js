@@ -1,6 +1,6 @@
 // --- Helper for seeking YouTube embeds ---
 // Must be global to work with onclick attributes generated in HTML strings
-window.seekToTimestamp = function (seconds) {
+window.seekToTimestamp = function(seconds) {
     const iframe = document.getElementById('yt-player');
     if (iframe && iframe.contentWindow) {
         iframe.contentWindow.postMessage(JSON.stringify({
@@ -25,22 +25,21 @@ document.addEventListener('alpine:init', () => {
         articles: [],
         currentView: { type: 'all', id: null, title: 'All Feeds' },
 
-
         // --- Article Loading State ---
         currentPage: 1,
         totalPages: 1,
         hasNextPage: false,
         isLoadingArticles: false,
-
+        
         // --- UI State ---
         isMobileMenuOpen: false,
         isModalOpen: false,
         modalArticle: null,
-        modalEmbedHtml: null,
-        activeArticleIndex: -1,
+        modalEmbedHtml: null, 
+        activeArticleIndex: -1, 
         isRefreshing: false,
         copiedArticleId: null,
-
+        
         // --- Sidebar State ---
         openCategoryIDs: [],
         openStreamIDs: [],
@@ -54,22 +53,22 @@ document.addEventListener('alpine:init', () => {
         customStreamError: '',
         newCategoryName: '',
         categoryError: '',
-
+        
         // --- Filtering & Sorting ---
         searchQuery: '',
         sortOrder: 'newest',
         unreadOnly: false,
-
+        
         // --- Drag & Drop State ---
         draggingFeedId: null,
         dragOverCategoryId: null,
         dragOverStreamId: null,
 
         // --- Bulk Assign State ---
-        selectedFeedIds: [],
+        selectedFeedIds: [], 
         isAssignModalOpen: false,
-        assignModalCategoryId: 'none',
-        assignModalStreamIds: [],
+        assignModalCategoryId: 'none', 
+        assignModalStreamIds: [], 
 
         // --- Edit Modal State ---
         isEditModalOpen: false,
@@ -81,34 +80,24 @@ document.addEventListener('alpine:init', () => {
 
         // --- Settings/Import/Export State ---
         isSettingsModalOpen: false,
-        importStatus: '',
+        importStatus: '', 
         importMessage: '',
-
+        
         // --- YouTube API State ---
         ytPlayer: null,
         isYtApiReady: false,
 
         // --- Init Function ---
         async init() {
-            this.loadYouTubeApi();
+            this.loadYouTubeApi(); 
             this.setupKeyboardShortcuts(); // Initialize shortcuts
             this.isRefreshing = true;
             await this.fetchAppData();
-            await this.fetchArticles(true);
+            await this.fetchArticles(true); 
             this.isRefreshing = false;
-
+            
             // Auto-refresh every 15 minutes
             setInterval(() => this.refreshAllFeeds(true), 15 * 60 * 1000);
-        },
-
-        cleanText(htmlContent) {
-            if (!htmlContent) return '';
-            // Remove HTML tags
-            let text = htmlContent.replace(/<[^>]*>?/gm, '');
-            // Decode entities
-            const txt = document.createElement("textarea");
-            txt.innerHTML = text;
-            return txt.value;
         },
 
         // --- Keyboard Shortcuts (J/K Navigation) ---
@@ -136,11 +125,11 @@ document.addEventListener('alpine:init', () => {
                     if (newIndex >= 0 && newIndex < articles.length) {
                         this.activeArticleIndex = newIndex;
                         const nextArticle = articles[newIndex];
-
+                        
                         // If modal is open, switch content. If closed, open it.
                         // Note: openModal now triggers markAsRead automatically
-                        this.openModal(nextArticle);
-
+                        this.openModal(nextArticle); 
+                        
                         // Optional: Scroll background list to keep item in view
                         // document.getElementById('article-card-' + nextArticle.id)?.scrollIntoView({block: 'center', behavior: 'smooth'});
                     }
@@ -155,7 +144,7 @@ document.addEventListener('alpine:init', () => {
                         this.toggleBookmark(this.modalArticle);
                     }
                     if (key === 'v') { // V for View Original
-                        window.open(this.modalArticle.link, '_blank');
+                         window.open(this.modalArticle.link, '_blank');
                     }
                 }
             });
@@ -171,7 +160,7 @@ document.addEventListener('alpine:init', () => {
             tag.src = "https://www.youtube.com/iframe_api";
             const firstScriptTag = document.getElementsByTagName('script')[0];
             firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
-
+            
             window.onYouTubeIframeAPIReady = () => {
                 this.isYtApiReady = true;
             };
@@ -198,9 +187,18 @@ document.addEventListener('alpine:init', () => {
                 this.loadMoreArticles();
             }
         },
-
+        
         loadMoreArticles() {
-            this.fetchArticles(false);
+            this.fetchArticles(false); 
+        },
+
+        // --- Helper: Clean Text for List View ---
+        cleanText(htmlContent) {
+            if (!htmlContent) return '';
+            let text = htmlContent.replace(/<[^>]*>?/gm, ''); // Strip tags
+            const txt = document.createElement("textarea");
+            txt.innerHTML = text; // Decode entities
+            return txt.value;
         },
 
         // --- API: Data Fetching ---
@@ -221,7 +219,7 @@ document.addEventListener('alpine:init', () => {
                 console.error('Error fetching app data:', error);
             }
         },
-
+        
         async fetchArticles(isNewQuery = false) {
             if (isNewQuery) {
                 this.currentPage = 1;
@@ -230,13 +228,13 @@ document.addEventListener('alpine:init', () => {
             }
 
             if (this.isLoadingArticles || (this.currentPage > 1 && !this.hasNextPage)) {
-                return;
+                return; 
             }
 
             this.isLoadingArticles = true;
 
             let url = `/api/articles?page=${this.currentPage}`;
-
+            
             // 1. Append Unread Filter
             if (this.unreadOnly) {
                 url += '&unread_only=true';
@@ -252,24 +250,24 @@ document.addEventListener('alpine:init', () => {
 
             // 4. Append Author (If author view)
             if (this.currentView.type === 'author' && this.currentView.title) {
-                url += `&author_name=${encodeURIComponent(this.currentView.title)}`;
+                 url += `&author_name=${encodeURIComponent(this.currentView.title)}`;
             }
 
             try {
                 const response = await fetch(url);
                 if (!response.ok) throw new Error('Failed to fetch articles');
                 const data = await response.json();
-
+                
                 this.articles = this.articles.concat(data.articles);
                 this.totalPages = data.total_pages;
                 this.hasNextPage = data.has_next;
-
+                
                 if (data.is_reddit_source) {
                     this.currentView.is_reddit_source = true;
                 }
 
-                this.currentPage += 1;
-
+                this.currentPage += 1; 
+                
             } catch (error) {
                 console.error('Error fetching articles:', error);
             } finally {
@@ -283,31 +281,31 @@ document.addEventListener('alpine:init', () => {
             try {
                 // If it's NOT auto-refresh (i.e. user clicked button), send force: true
                 const payload = { force: !isAutoRefresh };
-
-                await fetch('/api/refresh_all_feeds', {
+                
+                await fetch('/api/refresh_all_feeds', { 
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload)
                 });
-
+                
                 await this.fetchAppData();
-                await this.fetchArticles(true); // true = reset to page 1 to show new stuff
+                await this.fetchArticles(true); 
             } catch (error) {
                 console.error('Error refreshing feeds:', error);
             } finally {
                 this.isRefreshing = false;
             }
         },
-
+        
         // --- Computed Properties ---
         get currentTitle() {
             if (this.currentView.type === 'all') return 'All Feeds';
             if (this.currentView.type === 'favorites') return 'Favorites';
             if (this.currentView.type === 'readLater') return 'Read Later';
             if (this.currentView.type === 'videos') return 'Videos';
-            if (this.currentView.type === 'threads') return 'Threads';
+            if (this.currentView.type === 'threads') return 'Posts';
             if (this.currentView.type === 'sites') return 'Sites';
-
+            
             if (this.currentView.type === 'feed') {
                 const feed = this.appData.feeds.find(f => f.id === this.currentView.id);
                 return feed ? feed.title : 'Feed';
@@ -325,7 +323,7 @@ document.addEventListener('alpine:init', () => {
             }
             return 'VolumeRead21';
         },
-
+        
         get filteredArticles() {
             let articles = [...this.articles];
 
@@ -347,14 +345,14 @@ document.addEventListener('alpine:init', () => {
 
             return articles;
         },
-
+        
         getEmptyMessage() {
             if (this.isLoadingArticles && this.articles.length === 0) return 'Loading articles...';
             if (this.searchQuery) return 'No articles match your search.';
             if (this.appData.feeds.length === 0) return 'Add a feed to get started.';
             return 'No articles found for this view.';
         },
-
+        
         // --- View & Navigation ---
         setView(type, id = null, title = null) {
             let assignedStyle = null;
@@ -369,14 +367,14 @@ document.addEventListener('alpine:init', () => {
                 if (s) assignedStyle = s.layout_style;
             }
 
-            this.currentView = {
-                type,
-                id,
-                title,
+            this.currentView = { 
+                type, 
+                id, 
+                title, 
                 is_reddit_source: (type === 'threads'),
-                assigned_style: assignedStyle
+                assigned_style: assignedStyle 
             };
-
+            
             this.searchQuery = '';
             this.fetchArticles(true);
             this.isMobileMenuOpen = false;
@@ -386,7 +384,7 @@ document.addEventListener('alpine:init', () => {
             this.unreadOnly = !this.unreadOnly;
             this.fetchArticles(true); // true = reset to page 1
         },
-
+        
         get layoutMode() {
             if (this.currentView.assigned_style && this.currentView.assigned_style !== 'default') {
                 return this.currentView.assigned_style;
@@ -403,7 +401,7 @@ document.addEventListener('alpine:init', () => {
             if (this.currentView.type === 'videos') {
                 return 'videos';
             }
-            return 'standard';
+            return 'standard'; 
         },
 
         // --- Sidebar Toggles ---
@@ -421,7 +419,7 @@ document.addEventListener('alpine:init', () => {
                 return [...arr, item];
             }
         },
-
+        
         // --- Sidebar Helpers ---
         getFeedsInCategory(categoryId) {
             return this.appData.feeds.filter(f => f.category_id === categoryId);
@@ -432,7 +430,7 @@ document.addEventListener('alpine:init', () => {
                 .map(link => link.feed_id);
             return this.appData.feeds.filter(feed => feedIds.includes(feed.id));
         },
-
+        
         // --- Drag & Drop ---
         dragStartFeed(feedId, event) {
             if (this.selectedFeedIds.length > 0) {
@@ -484,7 +482,7 @@ document.addEventListener('alpine:init', () => {
             const data = await this.apiPost('/api/assign_feeds_bulk', payload);
             if (data.error) {
                 console.error("Error assigning feeds:", data.error);
-                alert("Error assigning feeds: " + data.error);
+                alert("Error assigning feeds: " + data.error); 
             } else {
                 this.isAssignModalOpen = false;
                 this.clearSelection();
@@ -493,23 +491,25 @@ document.addEventListener('alpine:init', () => {
 
         // --- View Settings ---
         openViewSettings() {
-            const type = this.currentView.type;
+            let type = this.currentView.type;
             const id = this.currentView.id;
             const title = this.currentTitle;
 
             if (['all', 'videos', 'threads', 'sites', 'favorites', 'readLater'].includes(type)) {
                 this.editModal = {
-                    type: 'global',
-                    id: type,
+                    type: 'global', 
+                    id: type,       
                     currentName: title,
                     url: '',
                     layout_style: localStorage.getItem('style_' + type) || 'default'
                 };
                 this.editModalNewName = title;
                 this.editModalError = '';
-                this.editModalExcludeAll = false;
+                this.editModalExcludeAll = false; 
                 this.isEditModalOpen = true;
             } else {
+                // *** FIX: Map 'custom_stream' to 'stream' so openEditModal recognizes it ***
+                if (type === 'custom_stream') type = 'stream';
                 this.openEditModal(type, id, title);
             }
         },
@@ -539,7 +539,7 @@ document.addEventListener('alpine:init', () => {
                     if (!feed.exclude_from_all) allExcluded = false;
                 }
                 this.editModalExcludeAll = allExcluded;
-            } else if (type === 'stream') {
+            } else if (type === 'stream') { 
                 const stream = this.appData.customStreams.find(s => s.id === id);
                 if (stream) this.editModal.layout_style = stream.layout_style || 'default';
             }
@@ -562,11 +562,11 @@ document.addEventListener('alpine:init', () => {
         async submitEditModal() {
             this.editModalError = '';
             const { type, id } = this.editModal;
-
+            
             if (type === 'global') {
                 localStorage.setItem('style_' + id, this.editModal.layout_style);
                 this.isEditModalOpen = false;
-                this.currentView = { ...this.currentView };
+                this.currentView = { ...this.currentView }; 
                 return;
             }
 
@@ -581,7 +581,7 @@ document.addEventListener('alpine:init', () => {
                 url = `/api/category/${id}`;
                 payload.feed_exclusion_states = this.editModalFeedStates;
             } else if (type === 'stream') {
-                url = `/api/custom_stream/${id}`;
+                 url = `/api/custom_stream/${id}`;
             } else {
                 return;
             }
@@ -592,10 +592,13 @@ document.addEventListener('alpine:init', () => {
                 this.editModalError = data.error;
             } else {
                 this.isEditModalOpen = false;
-                if (this.currentView.type === (type === 'stream' ? 'custom_stream' : type) && this.currentView.id === id) {
-                    this.setView(this.currentView.type, id, newName);
+                // *** FIX: Map stream -> custom_stream here too for view refresh ***
+                const viewType = (type === 'stream') ? 'custom_stream' : type;
+                
+                if (this.currentView.type === viewType && this.currentView.id === id) {
+                     this.setView(viewType, id, newName);
                 } else {
-                    await this.fetchAppData();
+                     await this.fetchAppData();
                 }
             }
         },
@@ -606,25 +609,25 @@ document.addEventListener('alpine:init', () => {
             this.importStatus = '';
             this.importMessage = '';
         },
-
+        
         exportFeeds() {
             window.location.href = '/api/export_opml';
         },
-
+        
         async importFeeds(event) {
             const file = event.target.files[0];
             if (!file) return;
-
+            
             this.importStatus = 'uploading';
             this.importMessage = 'Importing feeds...';
-
+            
             const formData = new FormData();
             formData.append('file', file);
-
+            
             try {
                 const response = await fetch('/api/import_opml', { method: 'POST', body: formData });
                 const data = await response.json();
-
+                
                 if (response.ok) {
                     this.importStatus = 'success';
                     this.importMessage = data.message;
@@ -737,28 +740,28 @@ document.addEventListener('alpine:init', () => {
 
         async markAllRead() {
             if (!confirm('Mark all visible articles as read?')) return;
-
+            
             const payload = {
                 view_type: this.currentView.type,
                 view_id: this.currentView.id
             };
-
+            
             await this.apiPost('/api/mark_all_read', payload);
-
+            
             // Update local state to reflect change immediately
             this.articles.forEach(a => a.is_read = true);
         },
-
+        
         // --- Modal & Autoplay ---
         openModal(article) {
             // *** NEW: Destroy previous player instance if it exists ***
             if (this.ytPlayer) {
-                try { this.ytPlayer.destroy(); } catch (e) { }
+                try { this.ytPlayer.destroy(); } catch(e) {}
                 this.ytPlayer = null;
             }
 
             // *** NEW: Mark as read when opening ***
-            this.markAsRead(article);
+            this.markAsRead(article); 
 
             // 1. Track the current index for "Next" logic
             const currentList = this.filteredArticles;
@@ -766,17 +769,17 @@ document.addEventListener('alpine:init', () => {
 
             this.modalArticle = article;
             this.isModalOpen = true;
-
-            this.modalEmbedHtml = this.getYouTubeEmbed(article.link) ||
-                this.getTikTokEmbed(article.link) ||
-                this.getVimeoEmbed(article.link) ||
-                this.getDailymotionEmbed(article.link) ||
-                this.getRedgifsEmbed(article.full_content) ||
-                this.getImgurEmbed(article.full_content) ||
-                this.getStreamableEmbed(article.full_content) ||
-                this.getGfycatEmbed(article.full_content) ||
-                this.getTwitchClipEmbed(article.full_content) ||
-                this.getOtherGifEmbed(article.full_content);
+            
+            this.modalEmbedHtml = this.getYouTubeEmbed(article.link) || 
+                                  this.getTikTokEmbed(article.link) || 
+                                  this.getVimeoEmbed(article.link) || 
+                                  this.getDailymotionEmbed(article.link) || 
+                                  this.getRedgifsEmbed(article.full_content) || 
+                                  this.getImgurEmbed(article.full_content) || 
+                                  this.getStreamableEmbed(article.full_content) || 
+                                  this.getGfycatEmbed(article.full_content) ||
+                                  this.getTwitchClipEmbed(article.full_content) || 
+                                  this.getOtherGifEmbed(article.full_content);
 
             this.$nextTick(() => {
                 if (this.$refs.modalContent) {
@@ -791,10 +794,10 @@ document.addEventListener('alpine:init', () => {
             this.isModalOpen = false;
             setTimeout(() => {
                 this.modalArticle = null;
-                this.modalEmbedHtml = null;
+                this.modalEmbedHtml = null; 
                 // Destroy YT player if exists to stop audio
                 if (this.ytPlayer) {
-                    try { this.ytPlayer.destroy(); } catch (e) { }
+                    try { this.ytPlayer.destroy(); } catch(e) {}
                     this.ytPlayer = null;
                 }
             }, 200);
@@ -814,7 +817,7 @@ document.addEventListener('alpine:init', () => {
                 // Initialize YT Player
                 // Check if player already exists to avoid double-init
                 if (this.ytPlayer) return;
-
+                
                 try {
                     this.ytPlayer = new YT.Player('yt-player', {
                         events: {
@@ -826,7 +829,7 @@ document.addEventListener('alpine:init', () => {
                             }
                         }
                     });
-                } catch (e) {
+                } catch(e) {
                     console.error("YT Player Init Error", e);
                 }
                 return;
@@ -844,14 +847,14 @@ document.addEventListener('alpine:init', () => {
         // *** NEW: Play Next Function (Smart Skip) ***
         playNext() {
             if (this.activeArticleIndex === -1) return;
-
+            
             let nextIndex = this.activeArticleIndex + 1;
             const articles = this.filteredArticles;
 
             // Loop to find the next autoplayable video
             while (nextIndex < articles.length) {
                 const nextArticle = articles[nextIndex];
-
+                
                 // We only autoplay YouTube or Native videos (Imgur/MP4) because
                 // we can reliably detect when they end.
                 // We skip TikTok, Vimeo, Text posts, etc.
@@ -863,21 +866,21 @@ document.addEventListener('alpine:init', () => {
                     this.openModal(nextArticle);
                     return;
                 }
-
+                
                 // If not supported, skip to next index
                 nextIndex++;
             }
 
             console.log("End of playlist.");
         },
-
+        
         renderModalContent(article) {
             let content = article.full_content;
             if (!content) {
                 content = article.summary || '';
             }
             if (this.modalEmbedHtml && content) {
-                try {
+                 try {
                     const tempDiv = document.createElement('div');
                     tempDiv.innerHTML = content;
                     const images = tempDiv.querySelectorAll('img');
@@ -926,7 +929,7 @@ document.addEventListener('alpine:init', () => {
                             .map(p => `<p class="mb-4">${p.replace(/\n/g, '<br>')}</p>`)
                             .join('');
                     } else {
-                        content = `<p>${content}</p>`;
+                         content = `<p>${content}</p>`;
                     }
                 }
             }
@@ -945,13 +948,13 @@ document.addEventListener('alpine:init', () => {
             }
             return content;
         },
-
+        
         // ... Embed Generators ...
         getYouTubeEmbed(link) {
             if (!link) return null;
             const regex = /(?:https?:\/\/)?(?:www\.)?youtube\.com\/(?:watch\?v=|shorts\/)([a-zA-Z0-9_-]{11})/;
             const match = link.match(regex);
-
+            
             if (match && match[1]) {
                 const videoId = match[1];
                 // *** FIX: Added origin parameter (Required for enablejsapi) ***
@@ -966,7 +969,7 @@ document.addEventListener('alpine:init', () => {
                     </div>
                 `;
             }
-            return null;
+            return null; 
         },
 
         getTikTokEmbed(link) {
@@ -988,7 +991,7 @@ document.addEventListener('alpine:init', () => {
             }
             return null;
         },
-
+        
         getVimeoEmbed(link) {
             if (!link) return null;
             const regex = /vimeo\.com\/(?:.*\/)?(\d+)/;
@@ -1047,7 +1050,7 @@ document.addEventListener('alpine:init', () => {
                     </div>
                 `;
             }
-            return null;
+            return null; 
         },
 
         getImgurEmbed(htmlContent) {
@@ -1056,8 +1059,8 @@ document.addEventListener('alpine:init', () => {
             const match = htmlContent.match(regex);
 
             if (match && match[1]) {
-                const videoUrl = match[1].replace('.gifv', '.mp4');
-
+                const videoUrl = match[1].replace('.gifv', '.mp4'); 
+                
                 return `
                     <div class="aspect-w-16 aspect-h-9 rounded-lg overflow-hidden">
                         <video src="${videoUrl}" 
@@ -1067,7 +1070,7 @@ document.addEventListener('alpine:init', () => {
                     </div>
                 `;
             }
-            return null;
+            return null; 
         },
 
         getOtherGifEmbed(htmlContent) {
@@ -1081,14 +1084,14 @@ document.addEventListener('alpine:init', () => {
                     <img class="w-full rounded-lg mb-4" src="${gifUrl}" alt="Embedded GIF">
                 `;
             }
-            return null;
+            return null; 
         },
-
+        
         getStreamableEmbed(htmlContent) {
             if (!htmlContent) return null;
             const regex = /href="(?:https?:\/\/)?(?:www\.)?streamable\.com\/([a-zA-Z0-9]+)"/;
             const match = htmlContent.match(regex);
-
+            
             if (match && match[1]) {
                 return `
                     <div class="aspect-w-16 aspect-h-9 rounded-lg overflow-hidden">
@@ -1101,14 +1104,14 @@ document.addEventListener('alpine:init', () => {
                     </div>
                 `;
             }
-            return null;
+            return null; 
         },
 
         getGfycatEmbed(htmlContent) {
             if (!htmlContent) return null;
             const regex = /href="(?:https?:\/\/)?gfycat\.com\/([a-zA-Z0-9]+)"/;
             const match = htmlContent.match(regex);
-
+            
             if (match && match[1]) {
                 return `
                     <div class="aspect-w-16 aspect-h-9 rounded-lg overflow-hidden">
@@ -1121,18 +1124,18 @@ document.addEventListener('alpine:init', () => {
                     </div>
                 `;
             }
-            return null;
+            return null; 
         },
 
         getTwitchClipEmbed(htmlContent) {
             if (!htmlContent) return null;
             const regex = /href="(?:https?:\/\/)?(?:www\.)?clips\.twitch\.tv\/([a-zA-Z0-9_-]+)"/;
             const match = htmlContent.match(regex);
-
+            
             if (match && match[1]) {
                 const clipId = match[1];
                 const parentDomain = window.location.hostname;
-
+                
                 return `
                     <div class="aspect-w-16 aspect-h-9 rounded-lg overflow-hidden">
                         <iframe src="https://clips.twitch.tv/embed?clip=${clipId}&parent=${parentDomain}"
@@ -1144,7 +1147,7 @@ document.addEventListener('alpine:init', () => {
                     </div>
                 `;
             }
-            return null;
+            return null; 
         },
 
         copyToClipboard(link, id) {
@@ -1172,7 +1175,7 @@ document.addEventListener('alpine:init', () => {
                 this.copyToClipboard(article.link, article.id);
             }
         },
-
+        
         async apiRequest(method, url, body = null) {
             const options = {
                 method,
@@ -1187,7 +1190,7 @@ document.addEventListener('alpine:init', () => {
             try {
                 const response = await fetch(url, options);
                 if (!response.ok) {
-                    const errorData = await response.json().catch(() => ({ error: `Error: ${response.status}` }));
+                    const errorData = await response.json().catch(() => ({error: `Error: ${response.status}`}));
                     return { error: errorData.error || `Error: ${response.status}` };
                 }
                 if (response.status === 204) {
@@ -1197,12 +1200,12 @@ document.addEventListener('alpine:init', () => {
                     const data = await response.json();
                     return data;
                 }
-                return { success: true };
+                return { success: true }; 
             } catch (error) {
                 return { error: error.message };
             }
         },
-
+        
         async apiPost(url, body = null) {
             const data = await this.apiRequest('POST', url, body);
             if (data && !data.error) {

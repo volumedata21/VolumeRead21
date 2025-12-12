@@ -437,33 +437,34 @@
                 </div>
             </header>
 
-            <div class="grid gap-6 p-4 mx-auto"
-                :class="{
+            <div class="grid gap-6 p-4 mx-auto" :class="{
                     'grid-cols-1 max-w-2xl': layoutMode === 'threads',
                     'grid-cols-1 max-w-4xl': layoutMode === 'list',
                     'grid-cols-1 sm:grid-cols-2 max-w-6xl': layoutMode !== 'threads' && layoutMode !== 'list'
-                }"
-                x-cloak>
+                }" x-cloak>
 
                 <template x-if="filteredArticles.length === 0">
                     <p class="text-[var(--text-secondary)]" x-text="getEmptyMessage()"></p>
                 </template>
-                
+
                 <template x-for="article in filteredArticles" :key="article.id">
                     <div>
                         <template x-if="layoutMode === 'list'">
                             <div class="group/card flex flex-col sm:flex-row h-auto sm:h-40 w-full overflow-hidden rounded-lg bg-[var(--bg-medium)] shadow-lg relative transition-opacity duration-300"
                                 :class="{ 'opacity-40': article.is_read, 'opacity-100': !article.is_read }">
-                                
+
                                 <div class="flex flex-1 min-w-0">
-                                    
-                                    <a href="#" @click.prevent="openModal(article)" class="w-28 sm:w-48 shrink-0 bg-[var(--bg-darkest)] relative overflow-hidden">
+
+                                    <a href="#" @click.prevent="openModal(article)"
+                                        class="w-28 sm:w-48 shrink-0 bg-[var(--bg-darkest)] relative overflow-hidden">
                                         <template x-if="article.image_url">
-                                            <img :src="article.image_url" class="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover/card:scale-105" 
+                                            <img :src="article.image_url"
+                                                class="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover/card:scale-105"
                                                 alt="" @error="handleImageError($event)">
                                         </template>
                                         <template x-if="!article.image_url">
-                                            <div class="absolute inset-0 flex h-full w-full items-center justify-center text-[var(--text-secondary)]">
+                                            <div
+                                                class="absolute inset-0 flex h-full w-full items-center justify-center text-[var(--text-secondary)]">
                                                 <i class="material-icons" style="font-size: 24px;">rss_feed</i>
                                             </div>
                                         </template>
@@ -471,42 +472,68 @@
 
                                     <div class="flex flex-1 flex-col p-3 sm:p-4 min-w-0">
                                         <div class="flex justify-between items-start gap-2">
-                                            <h3 class="text-sm sm:text-base font-semibold text-[var(--text-bright)] line-clamp-3 sm:line-clamp-1 leading-snug">
-                                                <a href="#" @click.prevent="openModal(article)" class="hover:underline" x-text="article.title"></a>
+                                            <h3
+                                                class="text-sm sm:text-base font-semibold text-[var(--text-bright)] line-clamp-3 sm:line-clamp-1 leading-snug">
+                                                <a href="#" @click.prevent="openModal(article)" class="hover:underline"
+                                                    x-text="article.title"></a>
                                             </h3>
-                                            <span class="shrink-0 text-[10px] sm:text-xs text-[var(--text-secondary)] pt-0.5 whitespace-nowrap" x-text="formatRelativeTime(article.published)"></span>
+                                            <span
+                                                class="shrink-0 text-[10px] sm:text-xs text-[var(--text-secondary)] pt-0.5 whitespace-nowrap"
+                                                x-text="formatRelativeTime(article.published)"></span>
                                         </div>
 
-                                        <div class="mt-1.5 text-xs sm:text-sm text-[var(--text-main)] line-clamp-3 sm:line-clamp-2 leading-relaxed" 
+                                        <div class="mt-1.5 text-xs sm:text-sm text-[var(--text-main)] line-clamp-3 sm:line-clamp-2 leading-relaxed"
                                             x-html="cleanText(article.summary || article.full_content)">
                                         </div>
 
                                         <div class="mt-auto hidden sm:flex items-center justify-between pt-2">
                                             <div class="flex items-center gap-2 overflow-hidden">
-                                                <button @click.prevent="setView('feed', article.feed_id)" 
-                                                        class="truncate text-xs font-medium text-[var(--text-highlight)] hover:underline"
-                                                        x-text="article.feed_title"></button>
+                                                <button @click.prevent="setView('feed', article.feed_id)"
+                                                    class="truncate text-xs font-medium text-[var(--text-highlight)] hover:underline"
+                                                    x-text="article.feed_title"></button>
                                             </div>
                                             <div class="flex items-center gap-1">
-                                                <button class="p-1" :class="article.is_favorite ? 'fav-selected' : 'text-[var(--text-secondary)] hover:text-[var(--text-highlight)]'" @click.prevent="toggleFavorite(article)"><i class="material-icons" style="font-size: 18px;" x-text="article.is_favorite ? 'star' : 'star_border'"></i></button>
-                                                <button class="p-1" :class="article.is_read_later ? 'text-[var(--text-highlight)]' : 'text-[var(--text-secondary)] hover:text-[var(--text-highlight)]'" @click.prevent="toggleBookmark(article)"><i class="material-icons" style="font-size: 18px;" x-text="article.is_read_later ? 'bookmark' : 'bookmark_border'"></i></button>
-                                                <a :href="article.link" target="_blank" class="p-1 text-[var(--text-secondary)] hover:text-[var(--text-highlight)]"><i class="material-icons" style="font-size: 18px;">open_in_new</i></a>
+                                                <button class="p-1"
+                                                    :class="article.is_favorite ? 'fav-selected' : 'text-[var(--text-secondary)] hover:text-[var(--text-highlight)]'"
+                                                    @click.prevent="toggleFavorite(article)"><i class="material-icons"
+                                                        style="font-size: 18px;"
+                                                        x-text="article.is_favorite ? 'star' : 'star_border'"></i></button>
+                                                <button class="p-1"
+                                                    :class="article.is_read_later ? 'text-[var(--text-highlight)]' : 'text-[var(--text-secondary)] hover:text-[var(--text-highlight)]'"
+                                                    @click.prevent="toggleBookmark(article)"><i class="material-icons"
+                                                        style="font-size: 18px;"
+                                                        x-text="article.is_read_later ? 'bookmark' : 'bookmark_border'"></i></button>
+                                                <a :href="article.link" target="_blank"
+                                                    class="p-1 text-[var(--text-secondary)] hover:text-[var(--text-highlight)]"><i
+                                                        class="material-icons"
+                                                        style="font-size: 18px;">open_in_new</i></a>
                                             </div>
                                         </div>
                                     </div>
                                 </div>
 
-                                <div class="flex sm:hidden items-center justify-between px-3 py-2 bg-[var(--bg-darkest)]/30 border-t border-white/5">
+                                <div
+                                    class="flex sm:hidden items-center justify-between px-3 py-2 bg-[var(--bg-darkest)]/30 border-t border-white/5">
                                     <div class="flex items-center gap-2 overflow-hidden max-w-[60%]">
-                                        <button @click.prevent="setView('feed', article.feed_id)" 
-                                                class="truncate text-[11px] font-medium text-[var(--text-highlight)] hover:underline"
-                                                x-text="article.feed_title"></button>
+                                        <button @click.prevent="setView('feed', article.feed_id)"
+                                            class="truncate text-[11px] font-medium text-[var(--text-highlight)] hover:underline"
+                                            x-text="article.feed_title"></button>
                                     </div>
-                                    
+
                                     <div class="flex items-center gap-4">
-                                        <button class="p-0.5" :class="article.is_favorite ? 'fav-selected' : 'text-[var(--text-secondary)] hover:text-[var(--text-bright)]'" @click.prevent="toggleFavorite(article)"><i class="material-icons" style="font-size: 18px;" x-text="article.is_favorite ? 'star' : 'star_border'"></i></button>
-                                        <button class="p-0.5" :class="article.is_read_later ? 'text-[var(--text-highlight)]' : 'text-[var(--text-secondary)] hover:text-[var(--text-bright)]'" @click.prevent="toggleBookmark(article)"><i class="material-icons" style="font-size: 18px;" x-text="article.is_read_later ? 'bookmark' : 'bookmark_border'"></i></button>
-                                        <a :href="article.link" target="_blank" class="p-0.5 text-[var(--text-secondary)] hover:text-[var(--text-bright)]"><i class="material-icons" style="font-size: 18px;">open_in_new</i></a>
+                                        <button class="p-0.5"
+                                            :class="article.is_favorite ? 'fav-selected' : 'text-[var(--text-secondary)] hover:text-[var(--text-bright)]'"
+                                            @click.prevent="toggleFavorite(article)"><i class="material-icons"
+                                                style="font-size: 18px;"
+                                                x-text="article.is_favorite ? 'star' : 'star_border'"></i></button>
+                                        <button class="p-0.5"
+                                            :class="article.is_read_later ? 'text-[var(--text-highlight)]' : 'text-[var(--text-secondary)] hover:text-[var(--text-bright)]'"
+                                            @click.prevent="toggleBookmark(article)"><i class="material-icons"
+                                                style="font-size: 18px;"
+                                                x-text="article.is_read_later ? 'bookmark' : 'bookmark_border'"></i></button>
+                                        <a :href="article.link" target="_blank"
+                                            class="p-0.5 text-[var(--text-secondary)] hover:text-[var(--text-bright)]"><i
+                                                class="material-icons" style="font-size: 18px;">open_in_new</i></a>
                                     </div>
                                 </div>
 
@@ -530,25 +557,29 @@
 
                                                 <template x-if="layoutMode === 'videos'">
                                                     <img class="relative z-10 w-full h-full object-cover shadow-xl"
-                                                        :src="article.image_url" alt="" @error="handleImageError($event)">
+                                                        :src="article.image_url" alt=""
+                                                        @error="handleImageError($event)">
                                                 </template>
 
                                                 <template x-if="layoutMode !== 'videos'">
                                                     <div class="relative z-10 flex justify-center items-center h-full">
                                                         <img class="max-w-full w-auto shadow-xl"
                                                             :class="layoutMode === 'threads' ? 'max-h-[70vh]' : 'max-h-96 object-contain'"
-                                                            :src="article.image_url" alt="" @error="handleImageError($event)">
+                                                            :src="article.image_url" alt=""
+                                                            @error="handleImageError($event)">
                                                     </div>
                                                 </template>
 
-                                                <div class="hidden h-64 w-full items-center justify-center relative z-10 bg-[var(--bg-darkest)] text-[var(--text-secondary)]">
+                                                <div
+                                                    class="hidden h-64 w-full items-center justify-center relative z-10 bg-[var(--bg-darkest)] text-[var(--text-secondary)]">
                                                     (Image failed)
                                                 </div>
                                             </div>
                                         </template>
 
                                         <template x-if="!article.image_url && layoutMode === 'videos'">
-                                            <div class="flex h-full w-full items-center justify-center bg-[var(--bg-darkest)] text-[var(--text-secondary)]">
+                                            <div
+                                                class="flex h-full w-full items-center justify-center bg-[var(--bg-darkest)] text-[var(--text-secondary)]">
                                                 (No Image)
                                             </div>
                                         </template>
@@ -562,36 +593,44 @@
                                             <a href="#" @click.prevent="openModal(article)" class="hover:underline"
                                                 x-text="article.title"></a>
                                         </h3>
-                                        
+
                                         <div class="mt-3 text-sm text-[var(--text-main)] prose prose-sm prose-invert max-w-none card-preview-content break-words leading-relaxed"
                                             :class="article.image_url && layoutMode !== 'videos' ? 'line-clamp-3' : 'line-clamp-[8]'"
-                                            x-show="layoutMode !== 'videos'" x-html="article.full_content || article.summary">
+                                            x-show="layoutMode !== 'videos'"
+                                            x-html="article.full_content || article.summary">
                                         </div>
                                     </div>
                                 </div>
 
-                                <div class="mt-auto flex items-center justify-between p-4 pt-2 border-t border-white/5 bg-[var(--bg-darkest)]/20">
+                                <div
+                                    class="mt-auto flex items-center justify-between p-4 pt-2 border-t border-white/5 bg-[var(--bg-darkest)]/20">
                                     <div class="flex items-center gap-2 overflow-hidden min-w-0 mr-2">
                                         <button @click.prevent="setView('feed', article.feed_id)"
                                             class="truncate text-xs font-medium text-[var(--text-highlight)] hover:underline"
                                             x-text="article.feed_title">
                                         </button>
-                                        <span class="text-xs text-[var(--text-secondary)] whitespace-nowrap">&middot;</span>
-                                        <span class="text-xs text-[var(--text-secondary)] whitespace-nowrap" x-text="formatRelativeTime(article.published)"></span>
+                                        <span
+                                            class="text-xs text-[var(--text-secondary)] whitespace-nowrap">&middot;</span>
+                                        <span class="text-xs text-[var(--text-secondary)] whitespace-nowrap"
+                                            x-text="formatRelativeTime(article.published)"></span>
                                     </div>
 
                                     <div class="flex items-center gap-2 shrink-0">
                                         <button class="p-1" @click.prevent="toggleFavorite(article)"
                                             :class="article.is_favorite ? 'fav-selected' : 'text-[var(--text-secondary)] hover:text-[var(--text-highlight)]'">
-                                            <i class="material-icons" style="font-size: 20px;" x-text="article.is_favorite ? 'star' : 'star_border'"></i>
+                                            <i class="material-icons" style="font-size: 20px;"
+                                                x-text="article.is_favorite ? 'star' : 'star_border'"></i>
                                         </button>
                                         <button class="p-1" @click.prevent="toggleBookmark(article)"
                                             :class="article.is_read_later ? 'text-[var(--text-highlight)]' : 'text-[var(--text-secondary)] hover:text-[var(--text-highlight)]'">
-                                            <i class="material-icons" style="font-size: 20px;" x-text="article.is_read_later ? 'bookmark' : 'bookmark_border'"></i>
+                                            <i class="material-icons" style="font-size: 20px;"
+                                                x-text="article.is_read_later ? 'bookmark' : 'bookmark_border'"></i>
                                         </button>
-                                        <button class="p-1 text-[var(--text-secondary)] hover:text-[var(--text-highlight)]"
+                                        <button
+                                            class="p-1 text-[var(--text-secondary)] hover:text-[var(--text-highlight)]"
                                             @click="shareArticle(article)">
-                                            <span class="material-icons" style="font-size: 20px;" x-text="copiedArticleId === article.id ? 'check' : 'share'"></span>
+                                            <span class="material-icons" style="font-size: 20px;"
+                                                x-text="copiedArticleId === article.id ? 'check' : 'share'"></span>
                                         </button>
                                         <a :href="article.link" target="_blank"
                                             class="p-1 text-[var(--text-secondary)] hover:text-[var(--text-highlight)]">
@@ -836,8 +875,10 @@
                     <hr class="border-[var(--divider-color)]" x-show="editModal.type !== 'global'">
 
                     <div class="mt-4 mb-6">
-                        <label class="block text-xs font-medium text-[var(--text-secondary)] mb-2 uppercase tracking-wider">View Style</label>
-                        
+                        <label
+                            class="block text-xs font-medium text-[var(--text-secondary)] mb-2 uppercase tracking-wider">View
+                            Style</label>
+
                         <div class="grid grid-cols-2 gap-2">
                             <button type="button" @click="editModal.layout_style = 'default'"
                                 class="col-span-2 flex items-center justify-center gap-2 rounded-md border px-3 py-2 text-sm font-medium transition-all"
@@ -958,12 +999,33 @@
             <div class="p-4 sm:p-5 space-y-6">
 
                 <div>
+                    <h3 class="text-sm font-medium text-[var(--text-bright)]">Smart Feed Capping</h3>
+                    <p class="mt-1 text-xs text-[var(--text-secondary)]">
+                        Limit high-volume feeds to their 10 most recent articles in the "All Feeds" view.
+                    </p>
+                    <div class="mt-3">
+                        <label class="inline-flex items-center cursor-pointer">
+                            <input type="checkbox" class="sr-only peer" :checked="smartFeedCap"
+                                @change="toggleSmartCap()">
+                            <div
+                                class="relative w-11 h-6 bg-[var(--bg-darkest)] border border-[var(--divider-color)] rounded-full peer peer-focus:ring-2 peer-focus:ring-[var(--highlight-ring)] peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[var(--text-highlight)]">
+                            </div>
+                            <span class="ms-3 text-sm font-medium text-[var(--text-main)]"
+                                x-text="smartFeedCap ? 'Enabled' : 'Disabled'"></span>
+                        </label>
+                    </div>
+                </div>
+
+                <hr class="border-[var(--divider-color)]">
+
+                <div>
                     <h3 class="text-sm font-medium text-[var(--text-bright)]">Maintenance</h3>
                     <p class="mt-1 text-xs text-[var(--text-secondary)]">
                         Clean up articles older than 30 days. Favorites and Bookmarks are safe.
                     </p>
                     <div class="mt-3 flex items-center gap-3">
-                        <button @click="apiPost('/api/maintenance/cleanup', {days: 30}).then(res => alert(res.message))"
+                        <button
+                            @click="apiPost('/api/maintenance/cleanup', {days: 30}).then(res => alert(res.message))"
                             class="rounded-md bg-[var(--bg-darkest)] border border-[var(--divider-color)] px-4 py-2 text-xs font-medium text-[var(--text-secondary)] hover:text-red-400 hover:border-red-900 transition-colors">
                             Clean Old Articles
                         </button>
@@ -996,7 +1058,8 @@
                         <label
                             class="flex w-full cursor-pointer items-center justify-center gap-2 rounded-md bg-[var(--bg-highlight)] px-4 py-2.5 text-sm font-medium text-[var(--text-bright)] hover:bg-[var(--bg-highlight-hover)] transition-colors text-center">
                             <i class="material-icons text-lg">upload</i>
-                            <span x-text="importStatus === 'uploading' ? 'Importing...' : 'Select OPML File'"></span>
+                            <span
+                                x-text="importStatus === 'uploading' ? 'Importing...' : 'Select OPML File'"></span>
                             <input type="file" class="hidden" accept=".opml,.xml" @change="importFeeds($event)"
                                 :disabled="importStatus === 'uploading'">
                         </label>
@@ -1021,4 +1084,5 @@
     </div>
 
 </body>
+
 </html>

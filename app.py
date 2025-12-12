@@ -330,25 +330,27 @@ def get_articles():
     view_type = request.args.get('view_type', 'all')
     view_id = request.args.get('view_id', type=int)
     author_name = request.args.get('author_name', type=str)
-    # *** NEW: Get unread_only param ***
     unread_only = request.args.get('unread_only') == 'true'
-
-    query = Article.query.order_by(Article.published.desc())
+    search_query = request.args.get('search', '').lower()
     
-    # *** NEW: Apply Filter ***
-    if unread_only:
-        query = query.filter(Article.is_read == False)
+    # *** NEW: Get smart_cap param (Default to True) ***
+    smart_cap = request.args.get('smart_cap', 'true') == 'true'
+
+    # Base query
+    query = Article.query.join(Feed).filter(Feed.deleted_at.is_(None))
+    
     is_reddit_source = False
 
+    # --- View Filters ---
     if view_type == 'feed' and view_id:
         query = query.filter(Article.feed_id == view_id)
         feed = Feed.query.get(view_id)
         if feed and ('reddit.com' in feed.url or 'lemmy.world' in feed.url):
             is_reddit_source = True
     elif view_type == 'category' and view_id:
-        query = query.join(Feed).filter(Feed.category_id == view_id)
+        query = query.filter(Feed.category_id == view_id)
     elif view_type == 'custom_stream' and view_id:
-        query = query.join(Feed).join(custom_stream_feeds).filter(custom_stream_feeds.c.custom_stream_id == view_id)
+        query = query.join(custom_stream_feeds, Feed.id == custom_stream_feeds.c.feed_id).filter(custom_stream_feeds.c.custom_stream_id == view_id)
     elif view_type == 'favorites':
         query = query.filter(Article.is_favorite == True)
     elif view_type == 'readLater':
@@ -356,7 +358,7 @@ def get_articles():
     elif view_type == 'author' and author_name:
         query = query.filter(Article.author == author_name)
     elif view_type == 'sites':
-        query = query.join(Feed).filter(
+        query = query.filter(
             ~or_(
                 Feed.url.like('%youtube.com%'),
                 Feed.url.like('%vimeo.com%'),
@@ -367,7 +369,7 @@ def get_articles():
             )
         )
     elif view_type == 'videos':
-        query = query.join(Feed).filter(
+        query = query.filter(
             or_(
                 Feed.url.like('%youtube.com%'),
                 Feed.url.like('%vimeo.com%'),
@@ -376,15 +378,42 @@ def get_articles():
             )
         )
     elif view_type == 'threads':
-        query = query.join(Feed).filter(or_(Feed.url.like('%reddit.com%'), Feed.url.like('%lemmy.world%')))
+        query = query.filter(or_(Feed.url.like('%reddit.com%'), Feed.url.like('%lemmy.world%')))
         is_reddit_source = True
-    elif view_type == 'all':
-        query = query.join(Feed).filter(Feed.exclude_from_all == False)
     
-    active_feed_ids_query = db.session.query(Feed.id).filter(Feed.deleted_at.is_(None))
-    query = query.filter(Article.feed_id.in_(active_feed_ids_query))
+    elif view_type == 'all':
+        # *** SMART CAPPING LOGIC ***
+        if smart_cap:
+            # 1. Create a subquery that ranks articles within their feed by date
+            subquery = db.session.query(
+                Article.id,
+                func.row_number().over(
+                    partition_by=Article.feed_id,
+                    order_by=Article.published.desc()
+                ).label('rn')
+            ).subquery()
 
-    pagination = query.paginate(page=page, per_page=per_page, error_out=False)
+            # 2. Join and filter rank <= 10
+            query = query.join(subquery, Article.id == subquery.c.id).filter(subquery.c.rn <= 10)
+        
+        # Always respect "Exclude from All"
+        query = query.filter(Feed.exclude_from_all == False)
+
+    # --- Common Filters ---
+    if unread_only:
+        query = query.filter(Article.is_read == False)
+    
+    if search_query:
+        s = f"%{search_query}%"
+        query = query.filter(or_(
+            Article.title.ilike(s),
+            Article.summary.ilike(s),
+            Feed.title.ilike(s),
+            Article.author.ilike(s)
+        ))
+
+    # --- Ordering & Pagination ---
+    pagination = query.order_by(Article.published.desc()).paginate(page=page, per_page=per_page, error_out=False)
     
     return jsonify({
         'articles': [
@@ -399,7 +428,7 @@ def get_articles():
                 'published': a.published.isoformat() if a.published else datetime.datetime.now().isoformat(),
                 'is_favorite': a.is_favorite, 
                 'is_read_later': a.is_read_later,
-                'is_read': a.is_read,  # <--- NEW FIELD
+                'is_read': a.is_read,
                 'feed_title': a.feed.title if a.feed else 'Unknown Feed', 
                 'feed_id': a.feed_id
             } for a in pagination.items

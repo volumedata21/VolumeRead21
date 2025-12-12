@@ -1,5 +1,4 @@
 // --- Helper for seeking YouTube embeds ---
-// Must be global to work with onclick attributes generated in HTML strings
 window.seekToTimestamp = function(seconds) {
     const iframe = document.getElementById('yt-player');
     if (iframe && iframe.contentWindow) {
@@ -90,25 +89,34 @@ document.addEventListener('alpine:init', () => {
         // --- Init Function ---
         async init() {
             this.loadYouTubeApi(); 
-            this.setupKeyboardShortcuts(); // Initialize shortcuts
+            this.setupKeyboardShortcuts(); 
+
+            // *** NEW: Handle Browser Back Button (popstate) ***
+            window.addEventListener('popstate', (event) => {
+                // If the user hits Back, and the modal is open...
+                if (this.isModalOpen) {
+                    // Close the modal UI
+                    this.isModalOpen = false;
+                    // Clean up the player/variables
+                    this.cleanupModal();
+                }
+            });
+
             this.isRefreshing = true;
             await this.fetchAppData();
             await this.fetchArticles(true); 
             this.isRefreshing = false;
             
-            // Auto-refresh every 15 minutes
             setInterval(() => this.refreshAllFeeds(true), 15 * 60 * 1000);
         },
 
         // --- Keyboard Shortcuts (J/K Navigation) ---
         setupKeyboardShortcuts() {
             document.addEventListener('keydown', (e) => {
-                // Ignore if typing in an input
                 if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
 
                 const key = e.key.toLowerCase();
 
-                // Navigation (J = Next, K = Prev)
                 if (key === 'j' || key === 'k') {
                     const articles = this.filteredArticles;
                     if (articles.length === 0) return;
@@ -121,31 +129,17 @@ document.addEventListener('alpine:init', () => {
                         newIndex = this.activeArticleIndex - 1;
                     }
 
-                    // Bounds check
                     if (newIndex >= 0 && newIndex < articles.length) {
                         this.activeArticleIndex = newIndex;
                         const nextArticle = articles[newIndex];
-                        
-                        // If modal is open, switch content. If closed, open it.
-                        // Note: openModal now triggers markAsRead automatically
                         this.openModal(nextArticle); 
-                        
-                        // Optional: Scroll background list to keep item in view
-                        // document.getElementById('article-card-' + nextArticle.id)?.scrollIntoView({block: 'center', behavior: 'smooth'});
                     }
                 }
 
-                // Actions for the ACTIVE article (modal open)
                 if (this.isModalOpen && this.modalArticle) {
-                    if (key === 'f') {
-                        this.toggleFavorite(this.modalArticle);
-                    }
-                    if (key === 'b') { // B for Bookmark/Read Later
-                        this.toggleBookmark(this.modalArticle);
-                    }
-                    if (key === 'v') { // V for View Original
-                         window.open(this.modalArticle.link, '_blank');
-                    }
+                    if (key === 'f') this.toggleFavorite(this.modalArticle);
+                    if (key === 'b') this.toggleBookmark(this.modalArticle);
+                    if (key === 'v') window.open(this.modalArticle.link, '_blank');
                 }
             });
         },
@@ -195,9 +189,9 @@ document.addEventListener('alpine:init', () => {
         // --- Helper: Clean Text for List View ---
         cleanText(htmlContent) {
             if (!htmlContent) return '';
-            let text = htmlContent.replace(/<[^>]*>?/gm, ''); // Strip tags
+            let text = htmlContent.replace(/<[^>]*>?/gm, ''); 
             const txt = document.createElement("textarea");
-            txt.innerHTML = text; // Decode entities
+            txt.innerHTML = text; 
             return txt.value;
         },
 
@@ -234,21 +228,9 @@ document.addEventListener('alpine:init', () => {
             this.isLoadingArticles = true;
 
             let url = `/api/articles?page=${this.currentPage}`;
-            
-            // 1. Append Unread Filter
-            if (this.unreadOnly) {
-                url += '&unread_only=true';
-            }
-
-            // 2. Append View Type (Always required)
+            if (this.unreadOnly) url += '&unread_only=true';
             url += `&view_type=${this.currentView.type}`;
-
-            // 3. Append View ID (If specific view)
-            if (this.currentView.id) {
-                url += `&view_id=${this.currentView.id}`;
-            }
-
-            // 4. Append Author (If author view)
+            if (this.currentView.id) url += `&view_id=${this.currentView.id}`;
             if (this.currentView.type === 'author' && this.currentView.title) {
                  url += `&author_name=${encodeURIComponent(this.currentView.title)}`;
             }
@@ -279,15 +261,12 @@ document.addEventListener('alpine:init', () => {
             if (this.isRefreshing) return;
             this.isRefreshing = true;
             try {
-                // If it's NOT auto-refresh (i.e. user clicked button), send force: true
                 const payload = { force: !isAutoRefresh };
-                
                 await fetch('/api/refresh_all_feeds', { 
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload)
                 });
-                
                 await this.fetchAppData();
                 await this.fetchArticles(true); 
             } catch (error) {
@@ -382,7 +361,7 @@ document.addEventListener('alpine:init', () => {
 
         toggleUnreadOnly() {
             this.unreadOnly = !this.unreadOnly;
-            this.fetchArticles(true); // true = reset to page 1
+            this.fetchArticles(true); 
         },
         
         get layoutMode() {
@@ -508,13 +487,11 @@ document.addEventListener('alpine:init', () => {
                 this.editModalExcludeAll = false; 
                 this.isEditModalOpen = true;
             } else {
-                // *** FIX: Map 'custom_stream' to 'stream' so openEditModal recognizes it ***
                 if (type === 'custom_stream') type = 'stream';
                 this.openEditModal(type, id, title);
             }
         },
 
-        // --- Edit Modal ---
         openEditModal(type, id, currentName) {
             this.editModal = { type, id, currentName, url: '', layout_style: 'default' };
             this.editModalNewName = currentName;
@@ -592,9 +569,7 @@ document.addEventListener('alpine:init', () => {
                 this.editModalError = data.error;
             } else {
                 this.isEditModalOpen = false;
-                // *** FIX: Map stream -> custom_stream here too for view refresh ***
                 const viewType = (type === 'stream') ? 'custom_stream' : type;
-                
                 if (this.currentView.type === viewType && this.currentView.id === id) {
                      this.setView(viewType, id, newName);
                 } else {
@@ -734,7 +709,7 @@ document.addEventListener('alpine:init', () => {
         // --- NEW: Read/Unread Logic ---
         async markAsRead(article) {
             if (article.is_read) return;
-            article.is_read = true; // Optimistic UI update
+            article.is_read = true; 
             await this.apiPost(`/api/article/${article.id}/mark_read`);
         },
 
@@ -747,28 +722,27 @@ document.addEventListener('alpine:init', () => {
             };
             
             await this.apiPost('/api/mark_all_read', payload);
-            
-            // Update local state to reflect change immediately
             this.articles.forEach(a => a.is_read = true);
         },
         
         // --- Modal & Autoplay ---
         openModal(article) {
-            // *** NEW: Destroy previous player instance if it exists ***
             if (this.ytPlayer) {
                 try { this.ytPlayer.destroy(); } catch(e) {}
                 this.ytPlayer = null;
             }
 
-            // *** NEW: Mark as read when opening ***
             this.markAsRead(article); 
 
-            // 1. Track the current index for "Next" logic
             const currentList = this.filteredArticles;
             this.activeArticleIndex = currentList.findIndex(a => a.id === article.id);
 
             this.modalArticle = article;
             this.isModalOpen = true;
+
+            // *** NEW: Push History State ***
+            // This is the key line for the Back button feature
+            window.history.pushState({ modalOpen: true }, '', `#article-${article.id}`);
             
             this.modalEmbedHtml = this.getYouTubeEmbed(article.link) || 
                                   this.getTikTokEmbed(article.link) || 
@@ -785,17 +759,29 @@ document.addEventListener('alpine:init', () => {
                 if (this.$refs.modalContent) {
                     this.$refs.modalContent.scrollTop = 0;
                 }
-                // *** NEW: Initialize watcher for autoplay ***
                 this.initVideoWatcher();
             });
         },
 
         closeModal() {
-            this.isModalOpen = false;
+            // *** NEW: Go back in history if we opened it via pushState ***
+            if (this.isModalOpen) {
+                // If history state matches our modal open state, going back will trigger 'popstate'
+                if (window.history.state && window.history.state.modalOpen) {
+                    window.history.back(); 
+                } else {
+                    // Fallback for rare cases where history state is missing
+                    this.isModalOpen = false;
+                    this.cleanupModal();
+                }
+            }
+        },
+
+        // *** NEW: Separated cleanup logic for popstate event ***
+        cleanupModal() {
             setTimeout(() => {
                 this.modalArticle = null;
                 this.modalEmbedHtml = null; 
-                // Destroy YT player if exists to stop audio
                 if (this.ytPlayer) {
                     try { this.ytPlayer.destroy(); } catch(e) {}
                     this.ytPlayer = null;
@@ -803,26 +789,19 @@ document.addEventListener('alpine:init', () => {
             }, 200);
         },
 
-        // *** NEW: Autoplay Logic ***
+        // ... rest of video/embed functions (unchanged) ...
         initVideoWatcher() {
-            // Case A: YouTube Iframe
             const ytIframe = document.getElementById('yt-player');
             if (ytIframe) {
-                // *** FIX: Retry logic if API is not ready yet ***
                 if (!window.YT || !this.isYtApiReady) {
                     setTimeout(() => this.initVideoWatcher(), 100);
                     return;
                 }
-
-                // Initialize YT Player
-                // Check if player already exists to avoid double-init
                 if (this.ytPlayer) return;
-                
                 try {
                     this.ytPlayer = new YT.Player('yt-player', {
                         events: {
                             'onStateChange': (event) => {
-                                // State 0 = ENDED
                                 if (event.data === 0) {
                                     this.playNext();
                                 }
@@ -834,8 +813,6 @@ document.addEventListener('alpine:init', () => {
                 }
                 return;
             }
-
-            // Case B: Native HTML5 Video (Imgur, uploads, etc)
             const nativeVideo = document.querySelector('#modal-content video');
             if (nativeVideo) {
                 nativeVideo.addEventListener('ended', () => {
@@ -844,33 +821,21 @@ document.addEventListener('alpine:init', () => {
             }
         },
 
-        // *** NEW: Play Next Function (Smart Skip) ***
         playNext() {
             if (this.activeArticleIndex === -1) return;
-            
             let nextIndex = this.activeArticleIndex + 1;
             const articles = this.filteredArticles;
-
-            // Loop to find the next autoplayable video
             while (nextIndex < articles.length) {
                 const nextArticle = articles[nextIndex];
-                
-                // We only autoplay YouTube or Native videos (Imgur/MP4) because
-                // we can reliably detect when they end.
-                // We skip TikTok, Vimeo, Text posts, etc.
                 const isYouTube = !!this.getYouTubeEmbed(nextArticle.link);
                 const isNative = !!this.getImgurEmbed(nextArticle.full_content);
-
                 if (isYouTube || isNative) {
                     console.log("Autoplaying next:", nextArticle.title);
                     this.openModal(nextArticle);
                     return;
                 }
-                
-                // If not supported, skip to next index
                 nextIndex++;
             }
-
             console.log("End of playlist.");
         },
         
@@ -949,7 +914,6 @@ document.addEventListener('alpine:init', () => {
             return content;
         },
         
-        // ... Embed Generators ...
         getYouTubeEmbed(link) {
             if (!link) return null;
             const regex = /(?:https?:\/\/)?(?:www\.)?youtube\.com\/(?:watch\?v=|shorts\/)([a-zA-Z0-9_-]{11})/;
@@ -957,7 +921,6 @@ document.addEventListener('alpine:init', () => {
             
             if (match && match[1]) {
                 const videoId = match[1];
-                // *** FIX: Added origin parameter (Required for enablejsapi) ***
                 const origin = window.location.origin;
                 return `
                     <div class="aspect-w-16 aspect-h-9 rounded-lg overflow-hidden">

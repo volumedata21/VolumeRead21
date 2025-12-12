@@ -101,6 +101,16 @@ document.addEventListener('alpine:init', () => {
             setInterval(() => this.refreshAllFeeds(true), 15 * 60 * 1000);
         },
 
+        cleanText(htmlContent) {
+            if (!htmlContent) return '';
+            // Remove HTML tags
+            let text = htmlContent.replace(/<[^>]*>?/gm, '');
+            // Decode entities
+            const txt = document.createElement("textarea");
+            txt.innerHTML = text;
+            return txt.value;
+        },
+
         // --- Keyboard Shortcuts (J/K Navigation) ---
         setupKeyboardShortcuts() {
             document.addEventListener('keydown', (e) => {

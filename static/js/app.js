@@ -59,7 +59,7 @@ document.addEventListener('alpine:init', () => {
         sortOrder: 'newest',
         unreadOnly: false,
 
-        // *** NEW: Smart Cap State (Default: True) ***
+        // *** Smart Cap State (Default: True) ***
         smartFeedCap: localStorage.getItem('smartFeedCap') !== 'false',
         
         // --- Drag & Drop State ---
@@ -231,8 +231,8 @@ document.addEventListener('alpine:init', () => {
             let url = `/api/articles?page=${this.currentPage}`;
             if (this.unreadOnly) url += '&unread_only=true';
             
-            // *** NEW: Pass Smart Cap Setting ***
-            url += `&smart_cap=${this.smartFeedCap}`;
+            // Add Smart Cap parameter
+            url += `&smart_cap=${this.smartFeedCap}`; 
 
             url += `&view_type=${this.currentView.type}`;
             if (this.currentView.id) url += `&view_id=${this.currentView.id}`;
@@ -369,11 +369,9 @@ document.addEventListener('alpine:init', () => {
             this.fetchArticles(true); 
         },
 
-        // *** NEW: Toggle Function for Settings ***
         toggleSmartCap() {
             this.smartFeedCap = !this.smartFeedCap;
             localStorage.setItem('smartFeedCap', this.smartFeedCap);
-            // Refresh view if we are on 'All Feeds'
             if (this.currentView.type === 'all') {
                 this.fetchArticles(true);
             }
@@ -758,7 +756,6 @@ document.addEventListener('alpine:init', () => {
             // Push history state so back button closes modal
             window.history.pushState({ modalOpen: true }, '', `#article-${article.id}`);
             
-            // *** THE KEY PART: THIS MUST BE HERE FOR VIDEO PLAYER ***
             this.modalEmbedHtml = this.getYouTubeEmbed(article.link) || 
                                   this.getTikTokEmbed(article.link) || 
                                   this.getVimeoEmbed(article.link) || 
@@ -800,6 +797,137 @@ document.addEventListener('alpine:init', () => {
             }, 200);
         },
 
+        // ... Video Watcher & Play Next ...
+        initVideoWatcher() {
+            const ytIframe = document.getElementById('yt-player');
+            if (ytIframe) {
+                if (!window.YT || !this.isYtApiReady) {
+                    setTimeout(() => this.initVideoWatcher(), 100);
+                    return;
+                }
+                if (this.ytPlayer) return;
+                try {
+                    this.ytPlayer = new YT.Player('yt-player', {
+                        events: {
+                            'onStateChange': (event) => {
+                                if (event.data === 0) {
+                                    this.playNext();
+                                }
+                            }
+                        }
+                    });
+                } catch(e) {
+                    console.error("YT Player Init Error", e);
+                }
+                return;
+            }
+            const nativeVideo = document.querySelector('#modal-content video');
+            if (nativeVideo) {
+                nativeVideo.addEventListener('ended', () => {
+                    this.playNext();
+                });
+            }
+        },
+
+        playNext() {
+            if (this.activeArticleIndex === -1) return;
+            let nextIndex = this.activeArticleIndex + 1;
+            const articles = this.filteredArticles;
+            while (nextIndex < articles.length) {
+                const nextArticle = articles[nextIndex];
+                const isYouTube = !!this.getYouTubeEmbed(nextArticle.link);
+                const isNative = !!this.getImgurEmbed(nextArticle.full_content);
+                if (isYouTube || isNative) {
+                    console.log("Autoplaying next:", nextArticle.title);
+                    this.openModal(nextArticle);
+                    return;
+                }
+                nextIndex++;
+            }
+            console.log("End of playlist.");
+        },
+
+        // *** FIX: Updated renderModalContent to fix plain text / YT descriptions ***
+        renderModalContent(article) {
+            let content = article.full_content;
+            if (!content) {
+                content = article.summary || '';
+            }
+
+            // 1. Clean up "Video" descriptions (remove duplicate embeds/images provided by the feed)
+            if (this.modalEmbedHtml && content) {
+                 try {
+                    const tempDiv = document.createElement('div');
+                    tempDiv.innerHTML = content;
+                    tempDiv.querySelectorAll('img, figure, iframe').forEach(el => el.remove());
+                    
+                    const walk = document.createTreeWalker(tempDiv, NodeFilter.SHOW_TEXT, null, false);
+                    let node;
+                    while (node = walk.nextNode()) {
+                        if (node.nodeValue.trim().toLowerCase().includes('tik tok')) {
+                            node.nodeValue = node.nodeValue.replace(/tik\s*tok/gi, '');
+                        }
+                    }
+                    content = tempDiv.innerHTML.trim();
+                } catch (e) {
+                    console.error("Error cleaning modal content:", e);
+                }
+            }
+            
+            // 2. Process Content for Links and Formatting
+            if (this.modalEmbedHtml && content) {
+                // Check if it's "mostly plain text" (YouTube/Vimeo descriptions usually lack block tags)
+                const hasBlockTags = /<(p|div|article|section|blockquote)/i.test(content);
+                
+                if (!hasBlockTags) {
+                    // A. Linkify URLs
+                    const urlRegex = /(https?:\/\/[^\s<]+)/g;
+                    content = content.replace(urlRegex, (url) => {
+                        const trailing = url.match(/[.,;!)]+$/);
+                        let cleanUrl = url;
+                        let suffix = '';
+                        if (trailing) {
+                            suffix = trailing[0];
+                            cleanUrl = url.substring(0, url.length - suffix.length);
+                        }
+                        return `<a href="${cleanUrl}" target="_blank" rel="noopener noreferrer" class="text-[var(--text-highlight)] hover:underline">${cleanUrl}</a>${suffix}`;
+                    });
+
+                    // B. Linkify Timestamps (e.g. 2:30, 1:05:00)
+                    const timestampRegex = /\b(?:(\d{1,2}):)?(\d{1,2}):(\d{2})\b/g;
+                    content = content.replace(timestampRegex, (match, h, m, s) => {
+                        let seconds = 0;
+                        if (h) {
+                            seconds = parseInt(h) * 3600 + parseInt(m) * 60 + parseInt(s);
+                        } else {
+                            seconds = parseInt(m) * 60 + parseInt(s);
+                        }
+                        return `<button onclick="window.seekToTimestamp(${seconds})" class="text-[var(--text-highlight)] hover:underline cursor-pointer font-bold">${match}</button>`;
+                    });
+
+                    // C. Convert Newlines to Breaks (Preserve formatting)
+                    // We do this LAST so we don't break the regexes above
+                    content = content.replace(/\n/g, '<br>');
+                }
+            }
+
+            // 3. Remove duplicate main image (for non-video articles)
+            if (article.image_url && !this.modalEmbedHtml) {
+                try {
+                    const tempDiv = document.createElement('div');
+                    tempDiv.innerHTML = content;
+                    const imgToRemove = tempDiv.querySelector(`img[src="${article.image_url}"]`);
+                    if (imgToRemove) {
+                        imgToRemove.parentNode.removeChild(imgToRemove);
+                        content = tempDiv.innerHTML;
+                    }
+                } catch (e) {
+                    console.error("Error removing duplicate image:", e);
+                }
+            }
+            return content;
+        },
+        
         // ... Embed Generators ...
         getYouTubeEmbed(link) {
             if (!link) return null;

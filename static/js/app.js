@@ -1,4 +1,5 @@
 // --- Helper for seeking YouTube embeds ---
+// Must be global to work with onclick attributes generated in HTML strings
 window.seekToTimestamp = function(seconds) {
     const iframe = document.getElementById('yt-player');
     if (iframe && iframe.contentWindow) {
@@ -58,8 +59,8 @@ document.addEventListener('alpine:init', () => {
         sortOrder: 'newest',
         unreadOnly: false,
 
-        // *** NEW: Smart Cap State ***
-        smartFeedCap: localStorage.getItem('smartFeedCap') !== 'false', // Default to true
+        // *** NEW: Smart Cap State (Default: True) ***
+        smartFeedCap: localStorage.getItem('smartFeedCap') !== 'false',
         
         // --- Drag & Drop State ---
         draggingFeedId: null,
@@ -94,13 +95,10 @@ document.addEventListener('alpine:init', () => {
             this.loadYouTubeApi(); 
             this.setupKeyboardShortcuts(); 
 
-            // *** NEW: Handle Browser Back Button (popstate) ***
+            // Handle Browser Back Button (popstate)
             window.addEventListener('popstate', (event) => {
-                // If the user hits Back, and the modal is open...
                 if (this.isModalOpen) {
-                    // Close the modal UI
                     this.isModalOpen = false;
-                    // Clean up the player/variables
                     this.cleanupModal();
                 }
             });
@@ -230,21 +228,14 @@ document.addEventListener('alpine:init', () => {
 
             this.isLoadingArticles = true;
 
-            // *** FIXED: URL construction happens entirely at the start ***
             let url = `/api/articles?page=${this.currentPage}`;
+            if (this.unreadOnly) url += '&unread_only=true';
             
-            if (this.unreadOnly) {
-                url += '&unread_only=true';
-            }
-            
-            // Add Smart Cap parameter
-            url += `&smart_cap=${this.smartFeedCap}`; 
+            // *** NEW: Pass Smart Cap Setting ***
+            url += `&smart_cap=${this.smartFeedCap}`;
 
-            // Add View Type logic
             url += `&view_type=${this.currentView.type}`;
-            if (this.currentView.id) {
-                url += `&view_id=${this.currentView.id}`;
-            }
+            if (this.currentView.id) url += `&view_id=${this.currentView.id}`;
             if (this.currentView.type === 'author' && this.currentView.title) {
                  url += `&author_name=${encodeURIComponent(this.currentView.title)}`;
             }
@@ -382,7 +373,7 @@ document.addEventListener('alpine:init', () => {
         toggleSmartCap() {
             this.smartFeedCap = !this.smartFeedCap;
             localStorage.setItem('smartFeedCap', this.smartFeedCap);
-            // Refresh view to apply change if we are on 'All Feeds'
+            // Refresh view if we are on 'All Feeds'
             if (this.currentView.type === 'all') {
                 this.fetchArticles(true);
             }
@@ -764,9 +755,10 @@ document.addEventListener('alpine:init', () => {
             this.modalArticle = article;
             this.isModalOpen = true;
 
-            // *** NEW: Push History State ***
+            // Push history state so back button closes modal
             window.history.pushState({ modalOpen: true }, '', `#article-${article.id}`);
             
+            // *** THE KEY PART: THIS MUST BE HERE FOR VIDEO PLAYER ***
             this.modalEmbedHtml = this.getYouTubeEmbed(article.link) || 
                                   this.getTikTokEmbed(article.link) || 
                                   this.getVimeoEmbed(article.link) || 
@@ -787,7 +779,6 @@ document.addEventListener('alpine:init', () => {
         },
 
         closeModal() {
-            // *** NEW: Go back in history if we opened it via pushState ***
             if (this.isModalOpen) {
                 if (window.history.state && window.history.state.modalOpen) {
                     window.history.back(); 
@@ -809,8 +800,231 @@ document.addEventListener('alpine:init', () => {
             }, 200);
         },
 
-        // ... rest of video/embed functions ...
-        // (No logic changes needed here, just formatting/wrapping up)
+        // ... Embed Generators ...
+        getYouTubeEmbed(link) {
+            if (!link) return null;
+            const regex = /(?:https?:\/\/)?(?:www\.)?youtube\.com\/(?:watch\?v=|shorts\/)([a-zA-Z0-9_-]{11})/;
+            const match = link.match(regex);
+            
+            if (match && match[1]) {
+                const videoId = match[1];
+                const origin = window.location.origin;
+                return `
+                    <div class="aspect-w-16 aspect-h-9 rounded-lg overflow-hidden">
+                        <iframe id="yt-player" src="https://www.youtube.com/embed/${videoId}?enablejsapi=1&autoplay=1&origin=${origin}" 
+                                frameborder="0" 
+                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+                                allowfullscreen>
+                        </iframe>
+                    </div>
+                `;
+            }
+            return null; 
+        },
+
+        getTikTokEmbed(link) {
+            if (!link) return null;
+            const regex = /tiktok\.com\/@[\w.]+\/video\/(\d+)/;
+            const match = link.match(regex);
+
+            if (match && match[1]) {
+                const videoId = match[1];
+                return `
+                    <div class="rounded-lg overflow-hidden flex justify-center bg-black">
+                        <iframe src="https://www.tiktok.com/embed/v2/${videoId}"
+                                style="width: 325px; height: 700px; max-width: 100%;"
+                                frameborder="0" 
+                                allow="encrypted-media;">
+                        </iframe>
+                    </div>
+                `;
+            }
+            return null;
+        },
+        
+        getVimeoEmbed(link) {
+            if (!link) return null;
+            const regex = /vimeo\.com\/(?:.*\/)?(\d+)/;
+            const match = link.match(regex);
+
+            if (match && match[1]) {
+                const videoId = match[1];
+                return `
+                    <div class="aspect-w-16 aspect-h-9 rounded-lg overflow-hidden">
+                        <iframe src="https://player.vimeo.com/video/${videoId}?autoplay=1" 
+                                frameborder="0" 
+                                allow="autoplay; fullscreen; picture-in-picture" 
+                                allowfullscreen>
+                        </iframe>
+                    </div>
+                `;
+            }
+            return null;
+        },
+
+        getDailymotionEmbed(link) {
+            if (!link) return null;
+            const regex = /dailymotion\.com\/video\/([a-zA-Z0-9]+)/;
+            const match = link.match(regex);
+
+            if (match && match[1]) {
+                const videoId = match[1];
+                return `
+                    <div class="aspect-w-16 aspect-h-9 rounded-lg overflow-hidden">
+                        <iframe src="https://www.dailymotion.com/embed/video/${videoId}?autoplay=1" 
+                                frameborder="0" 
+                                allow="autoplay; fullscreen; picture-in-picture" 
+                                allowfullscreen>
+                        </iframe>
+                    </div>
+                `;
+            }
+            return null;
+        },
+
+        getRedgifsEmbed(htmlContent) {
+            if (!htmlContent) return null;
+            const regex = /href="(?:https?:\/\/)?(?:www\.)?redgifs\.com\/(?:watch|ifr)\/([a-zA-Z0-9_-]+)"/;
+            const match = htmlContent.match(regex);
+
+            if (match && match[1]) {
+                const videoId = match[1];
+                return `
+                    <div class="aspect-w-16 aspect-h-9 rounded-lg overflow-hidden">
+                        <iframe src="https://www.redgifs.com/ifr/${videoId}"
+                                frameborder="0" 
+                                scrolling="no"
+                                allowfullscreen
+                                style="width: 100%; height: 100%; position: absolute; top: 0; left: 0;">
+                        </iframe>
+                    </div>
+                `;
+            }
+            return null; 
+        },
+
+        getImgurEmbed(htmlContent) {
+            if (!htmlContent) return null;
+            const regex = /href="(https?:\/\/i\.imgur\.com\/([a-zA-Z0-9]+)\.(mp4|gifv))"/;
+            const match = htmlContent.match(regex);
+
+            if (match && match[1]) {
+                const videoUrl = match[1].replace('.gifv', '.mp4'); 
+                
+                return `
+                    <div class="aspect-w-16 aspect-h-9 rounded-lg overflow-hidden">
+                        <video src="${videoUrl}" 
+                               autoplay loop muted playsinline
+                               style="width: 100%; height: 100%; position: absolute; top: 0; left: 0; object-fit: contain;">
+                        </video>
+                    </div>
+                `;
+            }
+            return null; 
+        },
+
+        getOtherGifEmbed(htmlContent) {
+            if (!htmlContent) return null;
+            const regex = /href="([^"]+\.gif)"/;
+            const match = htmlContent.match(regex);
+
+            if (match && match[1]) {
+                const gifUrl = match[1];
+                return `
+                    <img class="w-full rounded-lg mb-4" src="${gifUrl}" alt="Embedded GIF">
+                `;
+            }
+            return null; 
+        },
+        
+        getStreamableEmbed(htmlContent) {
+            if (!htmlContent) return null;
+            const regex = /href="(?:https?:\/\/)?(?:www\.)?streamable\.com\/([a-zA-Z0-9]+)"/;
+            const match = htmlContent.match(regex);
+            
+            if (match && match[1]) {
+                return `
+                    <div class="aspect-w-16 aspect-h-9 rounded-lg overflow-hidden">
+                        <iframe src="https://streamable.com/e/${match[1]}"
+                                frameborder="0" 
+                                scrolling="no"
+                                allowfullscreen
+                                style="width: 100%; height: 100%; position: absolute; top: 0; left: 0;">
+                        </iframe>
+                    </div>
+                `;
+            }
+            return null; 
+        },
+
+        getGfycatEmbed(htmlContent) {
+            if (!htmlContent) return null;
+            const regex = /href="(?:https?:\/\/)?gfycat\.com\/([a-zA-Z0-9]+)"/;
+            const match = htmlContent.match(regex);
+            
+            if (match && match[1]) {
+                return `
+                    <div class="aspect-w-16 aspect-h-9 rounded-lg overflow-hidden">
+                        <iframe src="https://gfycat.com/ifr/${match[1]}"
+                                frameborder="0" 
+                                scrolling="no" 
+                                allowfullscreen
+                                style="width: 100%; height: 100%; position: absolute; top: 0; left: 0;">
+                        </iframe>
+                    </div>
+                `;
+            }
+            return null; 
+        },
+
+        getTwitchClipEmbed(htmlContent) {
+            if (!htmlContent) return null;
+            const regex = /href="(?:https?:\/\/)?(?:www\.)?clips\.twitch\.tv\/([a-zA-Z0-9_-]+)"/;
+            const match = htmlContent.match(regex);
+            
+            if (match && match[1]) {
+                const clipId = match[1];
+                const parentDomain = window.location.hostname;
+                
+                return `
+                    <div class="aspect-w-16 aspect-h-9 rounded-lg overflow-hidden">
+                        <iframe src="https://clips.twitch.tv/embed?clip=${clipId}&parent=${parentDomain}"
+                                frameborder="0" 
+                                scrolling="no"
+                                allowfullscreen
+                                style="width: 100%; height: 100%; position: absolute; top: 0; left: 0;">
+                        </iframe>
+                    </div>
+                `;
+            }
+            return null; 
+        },
+
+        copyToClipboard(link, id) {
+            try {
+                const ta = document.createElement('textarea');
+                ta.value = link;
+                document.body.appendChild(ta);
+                ta.select();
+                document.execCommand('copy');
+                document.body.removeChild(ta);
+
+                this.copiedArticleId = id;
+                setTimeout(() => { this.copiedArticleId = null; }, 2000);
+            } catch (e) {
+                console.error('Failed to copy to clipboard', e);
+            }
+        },
+        shareArticle(article) {
+            if (navigator.share) {
+                navigator.share({
+                    title: article.title,
+                    url: article.link
+                });
+            } else {
+                this.copyToClipboard(article.link, article.id);
+            }
+        },
         
         async apiRequest(method, url, body = null) {
             const options = {
